@@ -1,85 +1,103 @@
-// Matches the actual Aditya Birla Capital logo:
-// Geometric square icon (triangular facets in red/orange/yellow) + ADITYA BIRLA / CAPITAL text
+// Accurate Aditya Birla Capital logo recreation:
+// Landscape rectangle with geometric triangular facets (dark red, red, orange, yellow)
+// + "ADITYA BIRLA" small caps + "CAPITAL" bold red
+
 export default function AbclLogo({ height = 40, white = false }) {
-  const h = height;
-  const iconSize = h;                      // square icon is same height as total
-  const textX = iconSize + 10;
-  const totalWidth = iconSize + 10 + 110;
+  // Icon is landscape rectangle: 1.25× wider than tall
+  const ih = height;               // icon height
+  const iw = Math.round(ih * 1.25); // icon width (landscape)
+  const gap = 10;
+  const textAreaW = Math.round(height * 3.2);
+  const totalW = iw + gap + textAreaW;
 
-  // On red background: icon becomes white outline, text becomes white
-  const captialColor  = white ? '#ffffff' : '#C8102E';
-  const adityaColor   = white ? 'rgba(255,255,255,0.9)' : '#1a1a1a';
-  const bgOpacity     = white ? 0 : 1;    // icon bg is transparent on red bg
+  const textDark  = white ? '#ffffff'           : '#1a1a1a';
+  const textRed   = white ? '#ffffff'           : '#C8102E';
 
-  // Icon dimensions (drawn in a square)
-  const s = iconSize;
-  const cx = s / 2;
-  const cy = s / 2;
+  // The geometric square/rectangle icon colours from the actual logo:
+  // Deep burgundy, crimson red, orange-red, amber orange, golden yellow
+  const c1 = white ? 'rgba(255,255,255,0.9)' : '#7B1020'; // deep red (large left triangle)
+  const c2 = white ? 'rgba(255,255,255,0.7)' : '#C8102E'; // bright red (top right area)
+  const c3 = white ? 'rgba(255,255,255,0.5)' : '#D4500A'; // orange-red
+  const c4 = white ? 'rgba(255,255,255,0.6)' : '#E8891A'; // amber orange
+  const c5 = white ? 'rgba(255,255,255,0.4)' : '#F2B400'; // golden yellow
+  const c6 = white ? 'rgba(255,255,255,0.3)' : '#B03010'; // dark orange-red
+
+  // Icon bounding box
+  const x0 = 0, y0 = 0;
+  const x1 = iw, y1 = ih;
+  const cx = iw / 2, cy = ih / 2;
+  // Centre point slightly left and up (matches the logo's visual weight)
+  const px = iw * 0.42, py = ih * 0.52;
+
+  // Text positioning
+  const tx = iw + gap;
+  const topY  = ih * 0.40;
+  const botY  = ih * 0.88;
+  const fTop  = ih * 0.26;
+  const fBot  = ih * 0.42;
 
   return (
     <svg
-      width={totalWidth}
-      height={h}
-      viewBox={`0 0 ${totalWidth} ${h}`}
+      width={totalW}
+      height={ih}
+      viewBox={`0 0 ${totalW} ${ih}`}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-label="Aditya Birla Capital"
     >
-      {/* ── Geometric square icon ── */}
-      {/* Outer square background */}
-      <rect x="0" y="0" width={s} height={s} rx="2"
-        fill={white ? 'rgba(255,255,255,0.15)' : '#7B1E1E'} />
+      {/* ── Geometric icon: pinwheel of triangles from centre point ── */}
 
-      {/* Triangular facets — approximating the geometric diamond/sunburst pattern */}
-      {/* Top-left triangle: dark red */}
-      <polygon points={`0,0 ${cx},0 ${cx},${cy}`} fill={white ? 'rgba(255,255,255,0.5)' : '#9B2335'} />
-      {/* Top-right triangle: medium red */}
-      <polygon points={`${cx},0 ${s},0 ${cx},${cy}`} fill={white ? 'rgba(255,255,255,0.35)' : '#C8102E'} />
-      {/* Right triangle: orange */}
-      <polygon points={`${s},0 ${s},${cy} ${cx},${cy}`} fill={white ? 'rgba(255,255,255,0.55)' : '#D4500A'} />
-      {/* Bottom-right triangle: golden orange */}
-      <polygon points={`${s},${cy} ${s},${s} ${cx},${cy}`} fill={white ? 'rgba(255,255,255,0.25)' : '#E8891A'} />
-      {/* Bottom triangle: amber/yellow */}
-      <polygon points={`${cx},${cy} ${s},${s} ${cx},${s}`} fill={white ? 'rgba(255,255,255,0.4)' : '#D4750A'} />
-      {/* Bottom-left triangle: orange-red */}
-      <polygon points={`0,${s} ${cx},${s} ${cx},${cy}`} fill={white ? 'rgba(255,255,255,0.3)' : '#B84210'} />
-      {/* Left triangle: deep red */}
-      <polygon points={`0,0 ${cx},${cy} 0,${cy}`} fill={white ? 'rgba(255,255,255,0.45)' : '#8B1A1A'} />
-      {/* Left-bottom triangle: red */}
-      <polygon points={`0,${cy} ${cx},${cy} 0,${s}`} fill={white ? 'rgba(255,255,255,0.2)' : '#A52020'} />
+      {/* Background rect */}
+      <rect x={x0} y={y0} width={iw} height={ih} rx="1.5"
+        fill={white ? 'rgba(255,255,255,0.12)' : '#8B1A1A'} />
 
-      {/* Inner highlight lines — thin white lines suggesting facets */}
-      <line x1={cx} y1="0" x2={cx} y2={s} stroke="rgba(255,255,255,0.15)" strokeWidth="0.5"/>
-      <line x1="0" y1={cy} x2={s} y2={cy} stroke="rgba(255,255,255,0.15)" strokeWidth="0.5"/>
-      <line x1="0" y1="0" x2={s} y2={s} stroke="rgba(255,255,255,0.1)" strokeWidth="0.5"/>
-      <line x1={s} y1="0" x2="0" y2={s} stroke="rgba(255,255,255,0.1)" strokeWidth="0.5"/>
+      {/* Top-left triangle — dark red */}
+      <polygon points={`${x0},${y0} ${x1},${y0} ${px},${py}`} fill={c2} />
+
+      {/* Top-right triangle — orange */}
+      <polygon points={`${x1},${y0} ${x1},${y1} ${px},${py}`} fill={c3} />
+
+      {/* Bottom-right triangle — golden yellow */}
+      <polygon points={`${x1},${y1} ${x0},${y1} ${px},${py}`} fill={c4} />
+
+      {/* Bottom-left big triangle — deep red (dominant, matches logo) */}
+      <polygon points={`${x0},${y1} ${x0},${y0} ${px},${py}`} fill={c1} />
+
+      {/* Inner highlight facets to give depth */}
+      {/* Upper central triangle */}
+      <polygon points={`${x0},${y0} ${x1},${y0} ${px},${py}`} fill={c2} opacity="0.6" />
+      {/* Lower right accent */}
+      <polygon points={`${x1*0.6},${y1} ${x1},${y1} ${px},${py}`} fill={c5} />
+      {/* Upper right accent */}
+      <polygon points={`${x1},${y0} ${x1},${y1*0.45} ${px},${py}`} fill={c3} opacity="0.8"/>
+      {/* Small yellow triangle bottom centre */}
+      <polygon points={`${x0+iw*0.3},${y1} ${x0+iw*0.65},${y1} ${px},${py}`} fill={c5} opacity="0.9"/>
+
+      {/* Thin white separator lines suggesting facets */}
+      <line x1={x0} y1={y0} x2={px} y2={py} stroke="rgba(255,255,255,0.18)" strokeWidth="0.8"/>
+      <line x1={x1} y1={y0} x2={px} y2={py} stroke="rgba(255,255,255,0.18)" strokeWidth="0.8"/>
+      <line x1={x1} y1={y1} x2={px} y2={py} stroke="rgba(255,255,255,0.18)" strokeWidth="0.8"/>
+      <line x1={x0} y1={y1} x2={px} y2={py} stroke="rgba(255,255,255,0.18)" strokeWidth="0.8"/>
+      <line x1={iw*0.6} y1={y1} x2={px} y2={py} stroke="rgba(255,255,255,0.12)" strokeWidth="0.6"/>
 
       {/* ── Text ── */}
-      {/* "ADITYA BIRLA" — dark, small, wide letter-spacing */}
       <text
-        x={textX}
-        y={h * 0.38}
-        fontFamily="Inter, Arial, sans-serif"
-        fontSize={h * 0.24}
+        x={tx} y={topY}
+        fontFamily="'Inter', 'Arial', sans-serif"
+        fontSize={fTop}
         fontWeight="600"
-        letterSpacing="2"
-        fill={adityaColor}
-      >
-        ADITYA BIRLA
-      </text>
+        letterSpacing={ih * 0.06}
+        fill={textDark}
+      >ADITYA BIRLA</text>
 
-      {/* "CAPITAL" — bold red, larger */}
       <text
-        x={textX}
-        y={h * 0.82}
-        fontFamily="Inter, Arial, sans-serif"
-        fontSize={h * 0.38}
+        x={tx} y={botY}
+        fontFamily="'Inter', 'Arial', sans-serif"
+        fontSize={fBot}
         fontWeight="800"
-        letterSpacing="1"
-        fill={captialColor}
-      >
-        CAPITAL
-      </text>
+        letterSpacing={ih * 0.02}
+        fill={textRed}
+      >CAPITAL</text>
     </svg>
   );
 }
