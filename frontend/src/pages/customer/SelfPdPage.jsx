@@ -136,6 +136,7 @@ export default function CustomerPdPage() {
   const [linkError, setLinkError] = useState('');
   const [sessionToken, setSessionToken] = useState('');
   const [appInfo, setAppInfo] = useState(null);
+  const [demoMode, setDemoMode] = useState(false);
 
   // OTP state
   const [mobile, setMobile] = useState('');
@@ -158,6 +159,7 @@ export default function CustomerPdPage() {
 
   useEffect(() => {
     fetchLinkInfo();
+    pdApi.getMode().then(res => setDemoMode(res.data.mode === 'demo')).catch(() => {});
   }, [token]);
 
   const fetchLinkInfo = async () => {
@@ -370,6 +372,14 @@ export default function CustomerPdPage() {
             </div>
 
             {otpError && <Alert type="error">{otpError}</Alert>}
+
+            {demoMode && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center">
+                <p className="text-xs text-amber-700 font-medium">
+                  Demo mode — enter <span className="font-mono font-bold tracking-widest">1 2 3 4 5 6</span>
+                </p>
+              </div>
+            )}
 
             <Button className="w-full" size="lg" loading={verifyingOtp} onClick={handleVerifyOtp}>
               <ShieldCheck size={16} />

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Clock, CheckCircle, Send, RefreshCw } from 'lucide-react';
+import { FileText, Clock, CheckCircle, Send, RefreshCw, Zap, Radio } from 'lucide-react';
 import { applicationApi } from '../../api/client';
+import api from '../../api/client';
 import OfficerLayout from '../../components/layout/OfficerLayout';
 import { Card, StatusBadge, Spinner, Button } from '../../components/common/UI';
 import PdLinkModal from '../../components/common/PdLinkModal';
@@ -29,16 +30,19 @@ export default function OfficerDashboard() {
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState({});
   const [modal, setModal] = useState(null); // { link, customerName, appId, mobile }
+  const [appMode, setAppMode] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [statsRes, appsRes] = await Promise.all([
+      const [statsRes, appsRes, modeRes] = await Promise.all([
         applicationApi.getStats(),
         applicationApi.getAll(),
+        api.get('/mode'),
       ]);
       setStats(statsRes.data.data.stats);
       setApplications(appsRes.data.data);
+      setAppMode(modeRes.data.mode);
     } catch {
       toast.error('Failed to load dashboard data');
     } finally {
@@ -90,10 +94,22 @@ export default function OfficerDashboard() {
             <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
             <p className="text-sm text-gray-500 mt-0.5">Self-PD status overview</p>
           </div>
-          <Button variant="secondary" size="sm" onClick={fetchData} className="gap-2">
-            <RefreshCw size={14} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-3">
+            {appMode && (
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${
+                appMode === 'demo'
+                  ? 'bg-amber-50 border-amber-200 text-amber-700'
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              }`}>
+                {appMode === 'demo' ? <Zap size={11} /> : <Radio size={11} />}
+                {appMode === 'demo' ? 'Demo Mode — OTP: 123456' : 'Live Mode — Real SMS'}
+              </div>
+            )}
+            <Button variant="secondary" size="sm" onClick={fetchData} className="gap-2">
+              <RefreshCw size={14} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -193,6 +209,7 @@ export default function OfficerDashboard() {
         customerName={modal?.customerName}
         appId={modal?.appId}
         mobile={modal?.mobile}
+        demoMode={appMode === 'demo'}
       />
     </OfficerLayout>
   );

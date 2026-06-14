@@ -7,10 +7,12 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Attach auth token
+// Attach officer auth token ONLY if no Authorization header already set per-request
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('abcl_officer_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (!config.headers.Authorization) {
+    const token = localStorage.getItem('abcl_officer_token');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -54,6 +56,7 @@ export const pdApi = {
     api.post('/pd/submit', data, {
       headers: { Authorization: `Bearer ${sessionToken}` },
     }),
+  getMode: () => api.get('/mode'),
 };
 
 export const demoConfigApi = {

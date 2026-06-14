@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Copy, Check, CheckCircle, X, MessageSquare } from 'lucide-react';
 
-export default function PdLinkModal({ isOpen, onClose, link, customerName, appId, mobile }) {
+export default function PdLinkModal({ isOpen, onClose, link, customerName, appId, mobile, demoMode = false }) {
   const [copied, setCopied] = useState(false);
 
   if (!isOpen || !link) return null;
@@ -53,14 +53,29 @@ export default function PdLinkModal({ isOpen, onClose, link, customerName, appId
         </div>
 
         <div className="p-5 space-y-4">
-          {/* SMS confirmation */}
-          <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
-            <MessageSquare size={18} className="text-emerald-600 mt-0.5 flex-shrink-0" />
+          {/* SMS / demo status */}
+          <div className={`flex items-start gap-3 p-4 rounded-xl border ${
+            demoMode
+              ? 'bg-amber-50 border-amber-100'
+              : 'bg-emerald-50 border-emerald-100'
+          }`}>
+            <MessageSquare size={18} className={demoMode ? 'text-amber-600 mt-0.5 flex-shrink-0' : 'text-emerald-600 mt-0.5 flex-shrink-0'} />
             <div>
-              <p className="font-semibold text-emerald-800 text-sm">SMS delivered to {maskedMobile}</p>
-              <p className="text-emerald-700 text-xs mt-1 leading-relaxed">
-                The customer will receive an SMS from ABCL with the Self-PD link. The link is valid for 24 hours.
-              </p>
+              {demoMode ? (
+                <>
+                  <p className="font-semibold text-amber-800 text-sm">Demo Mode — SMS not sent</p>
+                  <p className="text-amber-700 text-xs mt-1 leading-relaxed">
+                    Copy the link below and open it manually. When prompted for OTP, enter <span className="font-mono font-bold">123456</span>.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold text-emerald-800 text-sm">SMS delivered to {maskedMobile}</p>
+                  <p className="text-emerald-700 text-xs mt-1 leading-relaxed">
+                    The customer will receive an SMS from ABCL with the Self-PD link. Valid for 24 hours.
+                  </p>
+                </>
+              )}
             </div>
           </div>
 

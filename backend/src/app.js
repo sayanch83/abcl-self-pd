@@ -49,6 +49,8 @@ app.use('/api/applications', applicationRoutes);
 app.use('/api/pd', pdRoutes);
 app.use('/api/demo-config', demoConfigRoutes);
 
+const { getMode, isDemoMode } = require('./services/twilioService');
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({
@@ -57,6 +59,18 @@ app.get('/api/health', (req, res) => {
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
+    mode: getMode(),
+  });
+});
+
+// Mode endpoint — returns current demo/live mode for frontend UI
+app.get('/api/mode', (req, res) => {
+  res.json({
+    mode: getMode(),
+    demoOtp: isDemoMode() ? '123456' : null,
+    message: isDemoMode()
+      ? 'Demo mode: SMS is not sent. OTP is fixed as 123456. Link is shown in modal.'
+      : 'Live mode: Real SMS via Twilio for both PD link and OTP.',
   });
 });
 
