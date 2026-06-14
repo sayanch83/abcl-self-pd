@@ -6,10 +6,10 @@ export const useAuthStore = create((set) => ({
   token: localStorage.getItem('abcl_officer_token') || null,
   isLoading: false,
 
-  login: async (email, password) => {
+  login: async (username, password) => {
     set({ isLoading: true });
     try {
-      const res = await authApi.login({ email, password });
+      const res = await authApi.login({ username, password });
       const { token, officer } = res.data.data;
       localStorage.setItem('abcl_officer_token', token);
       localStorage.setItem('abcl_officer', JSON.stringify(officer));

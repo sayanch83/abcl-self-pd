@@ -68,7 +68,7 @@ async function validateOtp(req, res) {
     }
 
     const cleanMobile = mobile.replace(/\D/g, '');
-    const result = verifyOtp(pdLink.id, cleanMobile, otp.toString().trim());
+    const result = await verifyOtp(pdLink.id, cleanMobile, otp.toString().trim());
 
     if (!result.success) {
       return res.status(400).json({ success: false, error: result.error });

@@ -5,14 +5,17 @@ const logger = require('../utils/logger');
 
 async function login(req, res) {
   try {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ success: false, error: 'Email and password are required' });
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Employee ID and password are required' });
     }
 
     const db = getDatabase();
-    const officer = db.prepare(`SELECT * FROM officers WHERE email = ? AND is_active = 1`).get(email.toLowerCase().trim());
+    // Accept either employee_id (e.g. ABCL001) or email
+    const officer = db.prepare(
+      `SELECT * FROM officers WHERE (employee_id = ? OR email = ?) AND is_active = 1`
+    ).get(username.trim().toUpperCase(), username.trim().toLowerCase());
 
     if (!officer) {
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
@@ -29,12 +32,11 @@ async function login(req, res) {
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
     );
 
-    // Log audit
     db.prepare(`INSERT INTO audit_log (id, entity_type, entity_id, action, performed_by, ip_address) VALUES (?, 'officer', ?, 'login', ?, ?)`).run(
       require('uuid').v4(), officer.id, officer.id, req.ip
     );
 
-    logger.info(`Officer login: ${officer.email}`);
+    logger.info(`Officer login: ${officer.employee_id} (${officer.email})`);
 
     return res.json({
       success: true,

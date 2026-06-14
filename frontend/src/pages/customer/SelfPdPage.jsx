@@ -347,7 +347,8 @@ export default function CustomerPdPage() {
                   <input
                     key={i}
                     id={`otp-${i}`}
-                    type="tel"
+                    type="password"
+                    inputMode="numeric"
                     maxLength={1}
                     value={d}
                     onChange={e => handleOtpChange(i, e.target.value)}
