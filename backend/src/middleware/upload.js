@@ -57,15 +57,14 @@ function createUploadMiddleware() {
 
 function getFileUrl(file) {
   if (file.path) return file.path; // Cloudinary URL
+
   if (file.buffer) {
-    // Demo: return a placeholder image URL
-    const placeholders = {
-      residence: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800',
-      office: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800',
-      business: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800',
-    };
-    return placeholders[file.fieldname] || placeholders.residence;
+    // No Cloudinary — convert buffer to base64 data URL so the actual photo is preserved
+    const base64 = file.buffer.toString('base64');
+    const mime = file.mimetype || 'image/jpeg';
+    return `data:${mime};base64,${base64}`;
   }
+
   return null;
 }
 

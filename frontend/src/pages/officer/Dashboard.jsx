@@ -5,7 +5,6 @@ import { applicationApi } from '../../api/client';
 import api from '../../api/client';
 import OfficerLayout from '../../components/layout/OfficerLayout';
 import { Card, StatusBadge, Spinner, Button } from '../../components/common/UI';
-import PdLinkModal from '../../components/common/PdLinkModal';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -28,8 +27,6 @@ export default function OfficerDashboard() {
   const [stats, setStats] = useState(null);
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [triggering, setTriggering] = useState({});
-  const [modal, setModal] = useState(null); // { link, customerName, appId, mobile }
   const [appMode, setAppMode] = useState(null);
 
   const fetchData = async () => {
@@ -51,29 +48,6 @@ export default function OfficerDashboard() {
   };
 
   useEffect(() => { fetchData(); }, []);
-
-  const handleTriggerPd = async (app, e) => {
-    e.stopPropagation();
-    setTriggering(t => ({ ...t, [app.id]: true }));
-    try {
-      const res = await applicationApi.triggerPd(app.id);
-      toast.success(res.data.message);
-      // Show modal with the link
-      if (res.data.data?.pdLink) {
-        setModal({
-          link: res.data.data.pdLink,
-          customerName: app.customer_name,
-          appId: app.app_id,
-          mobile: app.mobile_no,
-        });
-      }
-      fetchData();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to trigger PD link');
-    } finally {
-      setTriggering(t => ({ ...t, [app.id]: false }));
-    }
-  };
 
   if (loading) {
     return (
@@ -133,7 +107,7 @@ export default function OfficerDashboard() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {['App ID', 'Customer', 'Mobile', 'Product', 'Loan Amount', 'PD Status', 'Last Action', 'Actions'].map(h => (
+                  {['App ID', 'Customer', 'Mobile', 'Product', 'Loan Amount', 'PD Status', 'Last Action'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
                       {h}
                     </th>
@@ -169,23 +143,6 @@ export default function OfficerDashboard() {
                         ? formatDistanceToNow(new Date(app.last_link_sent), { addSuffix: true })
                         : '—'}
                     </td>
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      {app.status === 'completed' ? (
-                        <Button variant="ghost" size="sm" onClick={() => navigate(`/officer/applications/${app.id}`)}>
-                          View
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant={app.status === 'link_sent' ? 'secondary' : 'primary'}
-                          loading={triggering[app.id]}
-                          onClick={e => handleTriggerPd(app, e)}
-                        >
-                          <Send size={12} />
-                          {app.status === 'link_sent' ? 'Re-trigger' : 'Send Link'}
-                        </Button>
-                      )}
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -200,17 +157,6 @@ export default function OfficerDashboard() {
           </div>
         </Card>
       </div>
-
-      {/* PD Link Modal */}
-      <PdLinkModal
-        isOpen={!!modal}
-        onClose={() => setModal(null)}
-        link={modal?.link}
-        customerName={modal?.customerName}
-        appId={modal?.appId}
-        mobile={modal?.mobile}
-        demoMode={appMode === 'demo'}
-      />
     </OfficerLayout>
   );
 }

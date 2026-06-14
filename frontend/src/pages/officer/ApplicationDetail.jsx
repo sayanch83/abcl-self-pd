@@ -1,74 +1,114 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Send, MapPin, CheckCircle, XCircle, Image, User,
-  Building2, Home, Phone, FileText, AlertTriangle, Clock, RefreshCw
+  ChevronDown, ChevronUp, MapPin, CheckCircle, XCircle,
+  Home, Building2, Users, FileText, Image, RefreshCw, Send
 } from 'lucide-react';
 import { applicationApi } from '../../api/client';
+import api from '../../api/client';
 import OfficerLayout from '../../components/layout/OfficerLayout';
-import {
-  Card, Button, Badge, StatusBadge, Spinner, Alert,
-  DetailRow, SectionHeader, Textarea
-} from '../../components/common/UI';
-import { formatDistanceToNow } from 'date-fns';
+import { Badge, StatusBadge, Spinner, Alert, Textarea } from '../../components/common/UI';
 import PdLinkModal from '../../components/common/PdLinkModal';
+import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 
+// ── Collapsible Section (matches screenshot style) ────────────────────────────
+function Section({ title, icon: Icon, children, defaultOpen = false, badge }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden mb-3">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-3.5 bg-white hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-2.5">
+          {Icon && <Icon size={16} className="text-[#C8102E]" />}
+          <span className="text-sm font-semibold text-gray-800">{title}</span>
+          {badge && <span className="px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700 font-medium">{badge}</span>}
+        </div>
+        {open ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+      </button>
+      {open && (
+        <div className="border-t border-gray-100 bg-white px-5 py-4">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Field Row ─────────────────────────────────────────────────────────────────
+function Field({ label, value, wide }) {
+  return (
+    <div className={`flex items-start justify-between py-2 border-b border-gray-50 last:border-0 ${wide ? 'col-span-2' : ''}`}>
+      <span className="text-xs text-[#C8102E] font-medium min-w-[160px]">{label}</span>
+      <span className="text-sm text-gray-800 text-right">{value || <span className="text-gray-300 italic">—</span>}</span>
+    </div>
+  );
+}
+
+// ── Grid of fields ─────────────────────────────────────────────────────────────
+function FieldGrid({ children }) {
+  return <div className="space-y-0">{children}</div>;
+}
+
+// ── Geo Card ──────────────────────────────────────────────────────────────────
 function GeoCard({ analysis }) {
-  const riskColors = {
-    low: 'border-emerald-200 bg-emerald-50',
-    medium: 'border-amber-200 bg-amber-50',
-    high: 'border-red-200 bg-red-50',
+  const risk = analysis.riskLevel;
+  const colors = {
+    low:    { border: 'border-emerald-200 bg-emerald-50', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
+    medium: { border: 'border-amber-200 bg-amber-50',     text: 'text-amber-700',   badge: 'bg-amber-100 text-amber-700'    },
+    high:   { border: 'border-red-200 bg-red-50',         text: 'text-red-700',     badge: 'bg-red-100 text-red-700'        },
   };
-  const riskText = { low: 'text-emerald-700', medium: 'text-amber-700', high: 'text-red-700' };
+  const c = colors[risk] || colors.high;
 
   return (
-    <div className={`border rounded-xl p-4 ${riskColors[analysis.riskLevel]}`}>
-      <div className="flex items-start justify-between mb-3">
+    <div className={`border rounded-xl p-4 ${c.border}`}>
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          {analysis.photoType === 'residence' ? <Home size={16} className={riskText[analysis.riskLevel]} /> : <Building2 size={16} className={riskText[analysis.riskLevel]} />}
-          <span className={`text-sm font-semibold capitalize ${riskText[analysis.riskLevel]}`}>
-            {analysis.photoType} Photo
-          </span>
+          {analysis.photoType === 'residence'
+            ? <Home size={14} className={c.text} />
+            : <Building2 size={14} className={c.text} />}
+          <span className={`text-sm font-semibold capitalize ${c.text}`}>{analysis.photoType} Photo</span>
         </div>
-        <Badge variant={analysis.riskLevel === 'low' ? 'success' : analysis.riskLevel === 'medium' ? 'warning' : 'danger'}>
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${c.badge}`}>
           {analysis.distanceKm} km away
-        </Badge>
+        </span>
       </div>
 
       {analysis.photoUrl && (
-        <img
-          src={analysis.photoUrl}
-          alt={`${analysis.photoType} photo`}
+        <img src={analysis.photoUrl} alt={analysis.photoType}
           className="w-full h-32 object-cover rounded-lg mb-3"
+          onError={e => { e.target.style.display = 'none'; }}
         />
       )}
 
-      <div className="space-y-1.5 text-xs">
+      <div className="space-y-2 text-xs">
         <div className="flex items-start gap-2">
-          <MapPin size={12} className="text-gray-400 mt-0.5 flex-shrink-0" />
+          <MapPin size={11} className="text-gray-400 mt-0.5 flex-shrink-0" />
           <div>
             <p className="text-gray-500">Photo captured at</p>
-            <p className="font-medium text-gray-700">{analysis.photoCoords.lat.toFixed(5)}, {analysis.photoCoords.lng.toFixed(5)}</p>
+            <p className="font-medium text-gray-700">
+              {analysis.photoCoords?.lat?.toFixed(5)}, {analysis.photoCoords?.lng?.toFixed(5)}
+            </p>
           </div>
         </div>
         <div className="flex items-start gap-2">
-          <MapPin size={12} className="text-[#C8102E] mt-0.5 flex-shrink-0" />
+          <MapPin size={11} className="text-[#C8102E] mt-0.5 flex-shrink-0" />
           <div>
             <p className="text-gray-500">Address on record</p>
             <p className="font-medium text-gray-700">{analysis.referenceAddress}</p>
           </div>
         </div>
-        <div className={`mt-2 pt-2 border-t ${analysis.riskLevel === 'low' ? 'border-emerald-200' : analysis.riskLevel === 'medium' ? 'border-amber-200' : 'border-red-200'}`}>
-          <span className={`font-semibold ${riskText[analysis.riskLevel]}`}>
-            {analysis.distanceLabel} — {analysis.distanceKm} km from registered address
-          </span>
-        </div>
+        <p className={`font-semibold pt-1 border-t ${c.border.split(' ')[0]} ${c.text}`}>
+          {analysis.distanceLabel} — {analysis.distanceKm} km from registered address
+        </p>
       </div>
     </div>
   );
 }
 
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ApplicationDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -79,16 +119,21 @@ export default function ApplicationDetail() {
   const [remarks, setRemarks] = useState('');
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [modal, setModal] = useState(null);
+  const [appMode, setAppMode] = useState('live');
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await applicationApi.getById(id);
-      const appData = res.data.data;
-      setData(appData);
-      if (appData.submission?.pd_outcome) {
-        setOutcome(appData.submission.pd_outcome);
-        setRemarks(appData.submission.outcome_remarks || '');
+      const [res, modeRes] = await Promise.all([
+        applicationApi.getById(id),
+        api.get('/mode'),
+      ]);
+      const d = res.data.data;
+      setData(d);
+      setAppMode(modeRes.data.mode);
+      if (d.submission?.pd_outcome) {
+        setOutcome(d.submission.pd_outcome);
+        setRemarks(d.submission.outcome_remarks || '');
       }
     } catch {
       toast.error('Failed to load application');
@@ -142,300 +187,294 @@ export default function ApplicationDetail() {
   );
 
   const { submission, links, geoAnalysis } = data;
+  const isSalaried = data.employment_type === 'salaried';
+  const isCompleted = data.status === 'completed';
+  const s = submission; // shorthand
 
   return (
     <OfficerLayout>
-      <div className="animate-fadeIn max-w-5xl">
-        {/* Back + header */}
-        <div className="flex items-start gap-4 mb-6">
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="mt-1">
-            <ArrowLeft size={16} />
-          </Button>
-          <div className="flex-1">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl font-bold text-gray-900">{data.customer_name}</h1>
-              <StatusBadge status={data.status} />
-              {submission?.pd_outcome && (
-                <Badge variant={submission.pd_outcome}>{submission.pd_outcome === 'positive' ? '✓ Positive PD' : '✗ Negative PD'}</Badge>
-              )}
-            </div>
-            <p className="text-sm text-gray-500 mt-0.5 font-mono">{data.app_id} · {data.product} · ₹{(data.loan_amount / 100000).toFixed(1)}L</p>
-          </div>
-          <div className="flex gap-2">
-            {data.status !== 'completed' && (
-              <Button loading={triggering} onClick={handleTrigger} size="sm">
-                <Send size={14} />
-                {data.status === 'link_sent' ? 'Re-trigger Link' : 'Send PD Link'}
-              </Button>
+      {/* ── Top Info Bar (matches screenshot) ─────────────────────────────── */}
+      <div className="bg-white border border-gray-200 rounded-lg px-5 py-3 mb-4 text-xs text-gray-600">
+        <div className="flex items-center flex-wrap gap-x-5 gap-y-1">
+          <span>
+            <span className="font-semibold text-gray-800">{data.customer_name}</span>
+            {' · '}<span className="capitalize">{data.employment_type?.replace('_', ' ')}</span>
+          </span>
+          <span>
+            <span className="text-[#C8102E] font-mono font-semibold">{data.app_id}</span>
+          </span>
+          <span>Unsecured Loan</span>
+          <span>Amount : {data.loan_amount ? `₹${data.loan_amount.toLocaleString('en-IN')}` : '—'}</span>
+          <span>Stage : CRDT</span>
+          <span>Status : {data.status === 'completed' ? 'PD Completed' : data.status === 'link_sent' ? 'Awaiting Customer' : 'Pending PD'}</span>
+          <span>Branch : {data.branch}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <StatusBadge status={data.status} />
+            {s?.pd_outcome && (
+              <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${s.pd_outcome === 'positive' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                {s.pd_outcome === 'positive' ? '✓ Positive PD' : '✗ Negative PD'}
+              </span>
             )}
-            <Button variant="secondary" size="sm" onClick={fetchData}>
-              <RefreshCw size={14} />
-            </Button>
+            <button onClick={fetchData} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-colors">
+              <RefreshCw size={13} />
+            </button>
+          </div>
+        </div>
+        {data.officer_name && (
+          <div className="mt-1.5 pt-1.5 border-t border-gray-100 text-gray-400">
+            Assigned to : <span className="text-gray-600">{data.officer_name}</span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Main Layout ───────────────────────────────────────────────────── */}
+      <div className="flex gap-4 items-start">
+        {/* Left column — applicant summary */}
+        <div className="w-56 flex-shrink-0 space-y-3">
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Applicant</p>
+            <div className="space-y-2 text-xs">
+              <div>
+                <p className="text-[#C8102E]">Customer Name</p>
+                <p className="font-medium text-gray-800 mt-0.5">{data.customer_name}</p>
+              </div>
+              <div>
+                <p className="text-[#C8102E]">Mobile No.</p>
+                <p className="font-medium text-gray-800 mt-0.5 font-mono">
+                  {data.mobile_no?.replace(/(\d{2})\d{6}(\d{2})/, '$1xxxxxx$2')}
+                </p>
+              </div>
+              <div>
+                <p className="text-[#C8102E]">Product</p>
+                <p className="font-medium text-gray-800 mt-0.5">{data.product}</p>
+              </div>
+              <div>
+                <p className="text-[#C8102E]">Location</p>
+                <p className="font-medium text-gray-800 mt-0.5">{data.location || data.branch}</p>
+              </div>
+              <div>
+                <p className="text-[#C8102E]">Employment</p>
+                <p className="font-medium text-gray-800 mt-0.5 capitalize">{data.employment_type?.replace('_', ' ')}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Link history */}
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Link History</p>
+            {links?.length === 0 ? (
+              <p className="text-xs text-gray-400">No links sent</p>
+            ) : (
+              <div className="space-y-2">
+                {links?.slice(0, 4).map((l, i) => (
+                  <div key={l.id} className="text-xs">
+                    <p className="font-medium text-gray-700">
+                      {l.is_used === 1 ? '✓ Used' : l.is_used === 0 ? '🟢 Active' : '↺ Superseded'}
+                    </p>
+                    <p className="text-gray-400">{formatDistanceToNow(new Date(l.triggered_at), { addSuffix: true })}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-6">
-          {/* Left column */}
-          <div className="col-span-1 space-y-4">
-            {/* Applicant Details */}
-            <Card className="p-4">
-              <h3 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-                <User size={15} className="text-[#C8102E]" /> Applicant Details
-              </h3>
-              <DetailRow label="App ID" value={<span className="font-mono text-xs">{data.app_id}</span>} />
-              <DetailRow label="Customer" value={data.customer_name} />
-              <DetailRow label="Mobile" value={
-                <span className="font-mono">{data.mobile_no.replace(/(\d{2})\d{6}(\d{2})/, '$1xxxxxx$2')}</span>
-              } />
-              <DetailRow label="Product" value={data.product} />
-              <DetailRow label="Loan Amount" value={`₹${data.loan_amount?.toLocaleString('en-IN')}`} />
-              <DetailRow label="Branch" value={data.branch} />
-              <DetailRow label="Location" value={data.location} />
-              <DetailRow label="Employment" value={
-                <span className="capitalize">{data.employment_type?.replace('_', ' ')}</span>
-              } />
-            </Card>
+        {/* Right column — collapsible sections */}
+        <div className="flex-1 min-w-0">
 
-            {/* Addresses */}
-            <Card className="p-4">
-              <h3 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-                <MapPin size={15} className="text-[#C8102E]" /> Addresses
-              </h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Residence</p>
-                  <p className="text-xs text-gray-700 leading-relaxed">{data.residence_address || '—'}</p>
-                </div>
-                <div className="border-t border-gray-100 pt-3">
-                  <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">
-                    {data.employment_type === 'self_employed' ? 'Business' : 'Office'}
-                  </p>
-                  <p className="text-xs text-gray-700 leading-relaxed">{data.office_address || '—'}</p>
-                </div>
-              </div>
-            </Card>
+          {/* Applicant Details (always open) */}
+          <Section title="Applicant Details" icon={FileText} defaultOpen>
+            <FieldGrid>
+              <Field label="App. Id/Lead Id" value={data.app_id} />
+              <Field label="Customer Name" value={data.customer_name} />
+              <Field label="Bank/NBFC Name" value="Aditya Birla Capital Ltd." />
+              <Field label="Product" value={data.product} />
+              <Field label="Location" value={data.location} />
+            </FieldGrid>
+          </Section>
 
-            {/* Link History */}
-            <Card className="p-4">
-              <h3 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-                <Clock size={15} className="text-[#C8102E]" /> Link History
-              </h3>
-              {links.length === 0 ? (
-                <p className="text-xs text-gray-400">No links sent yet</p>
+          {/* Residence Details */}
+          <Section title="Residence Details" icon={Home} defaultOpen={isCompleted}>
+            <FieldGrid>
+              <Field label="Residence Address" value={data.residence_address} />
+              <Field label="Type of Residence" value={s?.residence_type?.replace(/_/g, ' ')} />
+              <Field label="Ownership Status" value={s?.residence_ownership?.replace(/_/g, ' ')} />
+              <Field label="Years at Address" value={s?.years_at_residence?.replace(/_/g, ' ')} />
+              <Field label="Locality Type" value={s?.locality_type?.replace(/_/g, ' ')} />
+            </FieldGrid>
+          </Section>
+
+          {/* Employment / Business */}
+          <Section
+            title={isSalaried ? 'Employment Details' : 'Business Details'}
+            icon={Building2}
+            defaultOpen={isCompleted}
+          >
+            <FieldGrid>
+              <Field
+                label={isSalaried ? 'Office Address' : 'Business Address'}
+                value={data.office_address}
+              />
+              {isSalaried ? (
+                <>
+                  <Field label="Employer Name" value={s?.employer_name} />
+                  <Field label="Designation" value={s?.designation} />
+                  <Field label="Years Employed" value={s?.years_employed?.replace(/_/g, ' ')} />
+                  <Field label="Monthly Income" value={s?.monthly_income ? `₹${Number(s.monthly_income).toLocaleString('en-IN')}` : null} />
+                </>
               ) : (
-                <div className="space-y-2">
-                  {links.slice(0, 5).map((link, i) => (
-                    <div key={link.id} className="flex items-start justify-between text-xs">
-                      <div>
-                        <p className="font-medium text-gray-700">
-                          {i === 0 && link.is_used === 0 ? '🟢 Active' : link.is_used === 1 ? '✓ Used' : '⟲ Superseded'}
-                        </p>
-                        <p className="text-gray-400">{formatDistanceToNow(new Date(link.triggered_at), { addSuffix: true })}</p>
-                      </div>
-                      <span className="text-gray-400">by {link.triggered_by_name?.split(' ')[0]}</span>
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <Field label="Business Name" value={s?.business_name} />
+                  <Field label="Business Type" value={s?.business_type?.replace(/_/g, ' ')} />
+                  <Field label="Years in Business" value={s?.years_in_business?.replace(/_/g, ' ')} />
+                  <Field label="Monthly Turnover" value={s?.monthly_turnover ? `₹${Number(s.monthly_turnover).toLocaleString('en-IN')}` : null} />
+                </>
               )}
-            </Card>
-          </div>
+            </FieldGrid>
+          </Section>
 
-          {/* Right column */}
-          <div className="col-span-2 space-y-4">
-            {data.status !== 'completed' && data.status !== 'link_sent' && (
-              <Alert type="info">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium">PD not yet initiated</p>
-                    <p className="text-sm mt-0.5">Send the self-PD link to the customer's registered mobile number to begin the personal discussion process.</p>
-                  </div>
-                </div>
-              </Alert>
+          {/* Personal Details */}
+          <Section title="Personal Details" icon={Users} defaultOpen={isCompleted}>
+            <FieldGrid>
+              <Field label="Family Members" value={s?.family_members} />
+              <Field label="Dependents" value={s?.dependents} />
+              <Field label="Existing Loans" value={s?.existing_loans?.replace(/_/g, ' ')} />
+              <Field label="Loan Purpose" value={s?.loan_purpose} />
+              {s?.additional_notes && <Field label="Customer Remarks" value={s.additional_notes} />}
+            </FieldGrid>
+          </Section>
+
+          {/* Geolocation Images */}
+          <Section title="Geolocation Images" icon={MapPin} defaultOpen={isCompleted}
+            badge={geoAnalysis?.length > 0 ? `${geoAnalysis.length} photos` : undefined}>
+            {!isCompleted ? (
+              <p className="text-sm text-gray-400 py-2">Photos will appear after customer submits the form.</p>
+            ) : geoAnalysis?.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                {geoAnalysis.map((a, i) => <GeoCard key={i} analysis={a} />)}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 py-2">No geo-tagged photos available.</p>
             )}
+          </Section>
 
-            {data.status === 'link_sent' && !submission && (
-              <Alert type="warning">
-                <div className="flex items-center gap-2">
-                  <Clock size={16} className="flex-shrink-0" />
-                  <p>Self-PD link has been sent. Waiting for customer to complete the form.</p>
-                </div>
-              </Alert>
+          {/* Uploaded Photographs */}
+          <Section title="Uploaded Photographs" icon={Image} defaultOpen={isCompleted}
+            badge={s?.photos?.length > 0 ? `${s.photos.length} photos` : undefined}>
+            {!isCompleted ? (
+              <p className="text-sm text-gray-400 py-2">Photos will appear after customer submits the form.</p>
+            ) : s?.photos?.length > 0 ? (
+              <div className="grid grid-cols-3 gap-3">
+                {s.photos.map((photo, i) => (
+                  <div key={i} className="relative group rounded-xl overflow-hidden border border-gray-100">
+                    <img
+                      src={photo.url}
+                      alt={photo.type}
+                      className="w-full h-36 object-cover"
+                      onError={e => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect fill="%23f3f4f6" width="200" height="150"/><text fill="%239ca3af" x="50%" y="50%" text-anchor="middle" dy=".3em">No preview</text></svg>'; }}
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-2 py-1 capitalize">{photo.type}</div>
+                    {photo.lat && (
+                      <div className="absolute top-1.5 right-1.5 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                        <MapPin size={8} />{photo.lat.toFixed(3)}, {photo.lng.toFixed(3)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 py-2">No photos uploaded.</p>
             )}
+          </Section>
 
-            {submission && (
-              <>
-                {/* PD Responses */}
-                <Card className="p-4">
-                  <h3 className="font-semibold text-gray-900 text-sm mb-4 flex items-center gap-2">
-                    <FileText size={15} className="text-[#C8102E]" /> Customer Responses
-                    <span className="text-xs text-gray-400 font-normal ml-auto">
-                      Submitted {formatDistanceToNow(new Date(submission.submitted_at), { addSuffix: true })}
-                    </span>
-                  </h3>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Residence */}
-                    <div className="border border-gray-100 rounded-lg p-3">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
-                        <Home size={12} /> Residence Details
-                      </p>
-                      <DetailRow label="Type" value={submission.residence_type} />
-                      <DetailRow label="Years at address" value={submission.years_at_residence} />
-                      <DetailRow label="Ownership" value={submission.residence_ownership} />
-                      <DetailRow label="Locality" value={submission.locality_type} />
+          {/* PD Outcome — only show after completion */}
+          {isCompleted && (
+            <Section title="PD Outcome" icon={FileText} defaultOpen>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setOutcome('positive')}
+                    className={`p-3 rounded-xl border-2 flex items-center gap-3 transition-all text-left ${
+                      outcome === 'positive'
+                        ? 'border-emerald-500 bg-emerald-50'
+                        : 'border-gray-200 hover:border-emerald-300 hover:bg-emerald-50'
+                    }`}
+                  >
+                    <CheckCircle size={20} className={outcome === 'positive' ? 'text-emerald-600' : 'text-gray-300'} />
+                    <div>
+                      <p className={`font-semibold text-sm ${outcome === 'positive' ? 'text-emerald-700' : 'text-gray-700'}`}>Positive</p>
+                      <p className="text-xs text-gray-400">Recommend to proceed</p>
                     </div>
+                  </button>
 
-                    {/* Employment/Business */}
-                    <div className="border border-gray-100 rounded-lg p-3">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
-                        <Building2 size={12} />
-                        {data.employment_type === 'salaried' ? 'Employment Details' : 'Business Details'}
-                      </p>
-                      {data.employment_type === 'salaried' ? (
-                        <>
-                          <DetailRow label="Employer" value={submission.employer_name} />
-                          <DetailRow label="Designation" value={submission.designation} />
-                          <DetailRow label="Years employed" value={submission.years_employed} />
-                          <DetailRow label="Monthly income" value={submission.monthly_income ? `₹${parseInt(submission.monthly_income).toLocaleString('en-IN')}` : null} />
-                        </>
-                      ) : (
-                        <>
-                          <DetailRow label="Business name" value={submission.business_name} />
-                          <DetailRow label="Business type" value={submission.business_type} />
-                          <DetailRow label="Years in business" value={submission.years_in_business} />
-                          <DetailRow label="Monthly turnover" value={submission.monthly_turnover ? `₹${parseInt(submission.monthly_turnover).toLocaleString('en-IN')}` : null} />
-                        </>
-                      )}
+                  <button
+                    onClick={() => setOutcome('negative')}
+                    className={`p-3 rounded-xl border-2 flex items-center gap-3 transition-all text-left ${
+                      outcome === 'negative'
+                        ? 'border-red-400 bg-red-50'
+                        : 'border-gray-200 hover:border-red-300 hover:bg-red-50'
+                    }`}
+                  >
+                    <XCircle size={20} className={outcome === 'negative' ? 'text-red-500' : 'text-gray-300'} />
+                    <div>
+                      <p className={`font-semibold text-sm ${outcome === 'negative' ? 'text-red-600' : 'text-gray-700'}`}>Negative</p>
+                      <p className="text-xs text-gray-400">Concerns identified</p>
                     </div>
+                  </button>
+                </div>
 
-                    {/* Personal */}
-                    <div className="border border-gray-100 rounded-lg p-3">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Personal Details</p>
-                      <DetailRow label="Family members" value={submission.family_members} />
-                      <DetailRow label="Dependents" value={submission.dependents} />
-                      <DetailRow label="Existing loans" value={submission.existing_loans} />
-                      <DetailRow label="Loan purpose" value={submission.loan_purpose} />
-                    </div>
-
-                    {/* General */}
-                    <div className="border border-gray-100 rounded-lg p-3">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">General Assessment</p>
-                      <DetailRow label="Interaction quality" value={submission.interaction_quality} />
-                      <DetailRow label="Co-operative" value={submission.customer_cooperative ? 'Yes' : 'No'} />
-                      {submission.additional_notes && (
-                        <div className="mt-2">
-                          <p className="text-xs text-gray-400 mb-1">Additional Notes</p>
-                          <p className="text-xs text-gray-700 leading-relaxed">{submission.additional_notes}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Geo Analysis */}
-                {geoAnalysis && geoAnalysis.length > 0 && (
-                  <Card className="p-4">
-                    <h3 className="font-semibold text-gray-900 text-sm mb-4 flex items-center gap-2">
-                      <MapPin size={15} className="text-[#C8102E]" /> Geo-tag Verification
-                    </h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      {geoAnalysis.map((analysis, i) => (
-                        <GeoCard key={i} analysis={analysis} />
-                      ))}
-                    </div>
-                  </Card>
-                )}
-
-                {/* Photos */}
-                {submission.photos && submission.photos.length > 0 && (
-                  <Card className="p-4">
-                    <h3 className="font-semibold text-gray-900 text-sm mb-3 flex items-center gap-2">
-                      <Image size={15} className="text-[#C8102E]" /> Uploaded Photographs
-                    </h3>
-                    <div className="grid grid-cols-3 gap-3">
-                      {submission.photos.map((photo, i) => (
-                        <div key={i} className="relative group rounded-xl overflow-hidden border border-gray-100">
-                          <img src={photo.url} alt={photo.type} className="w-full h-36 object-cover" />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                          <div className="absolute bottom-0 left-0 right-0 p-2 text-white text-xs translate-y-full group-hover:translate-y-0 transition-transform">
-                            <p className="font-medium capitalize">{photo.type}</p>
-                            {photo.lat && <p className="opacity-75">{photo.lat.toFixed(4)}, {photo.lng.toFixed(4)}</p>}
-                          </div>
-                          <div className="absolute top-2 left-2">
-                            <Badge variant="default" size="xs">
-                              <span className="capitalize">{photo.type}</span>
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                )}
-
-                {/* PD Outcome */}
-                <Card className="p-4">
-                  <h3 className="font-semibold text-gray-900 text-sm mb-4 flex items-center gap-2">
-                    {outcome === 'positive' ? <CheckCircle size={15} className="text-emerald-600" /> : outcome === 'negative' ? <XCircle size={15} className="text-red-500" /> : <FileText size={15} className="text-[#C8102E]" />}
-                    PD Outcome
-                  </h3>
-
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <button
-                      onClick={() => setOutcome('positive')}
-                      className={`p-3 rounded-xl border-2 flex items-center gap-3 transition-all text-left ${
-                        outcome === 'positive'
-                          ? 'border-emerald-500 bg-emerald-50'
-                          : 'border-gray-200 hover:border-emerald-300 hover:bg-emerald-50'
-                      }`}
-                    >
-                      <CheckCircle size={20} className={outcome === 'positive' ? 'text-emerald-600' : 'text-gray-300'} />
-                      <div>
-                        <p className={`font-semibold text-sm ${outcome === 'positive' ? 'text-emerald-700' : 'text-gray-700'}`}>Positive</p>
-                        <p className="text-xs text-gray-400">Recommend to proceed</p>
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => setOutcome('negative')}
-                      className={`p-3 rounded-xl border-2 flex items-center gap-3 transition-all text-left ${
-                        outcome === 'negative'
-                          ? 'border-red-400 bg-red-50'
-                          : 'border-gray-200 hover:border-red-300 hover:bg-red-50'
-                      }`}
-                    >
-                      <XCircle size={20} className={outcome === 'negative' ? 'text-red-500' : 'text-gray-300'} />
-                      <div>
-                        <p className={`font-semibold text-sm ${outcome === 'negative' ? 'text-red-600' : 'text-gray-700'}`}>Negative</p>
-                        <p className="text-xs text-gray-400">Concerns identified</p>
-                      </div>
-                    </button>
-                  </div>
-
-                  <Textarea
-                    label="Remarks"
-                    placeholder="Enter your observations and remarks about this PD..."
+                <div>
+                  <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1.5">Remarks</p>
+                  <textarea
                     value={remarks}
                     onChange={e => setRemarks(e.target.value)}
+                    placeholder="Enter your observations and remarks about this PD..."
                     rows={3}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 resize-none
+                      focus:outline-none focus:ring-2 focus:ring-[#C8102E] focus:border-transparent"
                   />
+                </div>
 
-                  <div className="flex items-center justify-between mt-4">
-                    {submission.reviewed_at && (
-                      <p className="text-xs text-gray-400">
-                        Last reviewed {formatDistanceToNow(new Date(submission.reviewed_at), { addSuffix: true })} by {submission.reviewer_name || 'officer'}
-                      </p>
-                    )}
-                    <Button loading={savingOutcome} onClick={handleSaveOutcome} size="sm" className="ml-auto">
-                      Save Outcome
-                    </Button>
-                  </div>
-                </Card>
-              </>
-            )}
-          </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleSaveOutcome}
+                    disabled={savingOutcome}
+                    className="px-5 py-2 bg-[#C8102E] text-white text-sm font-medium rounded-lg hover:bg-[#A00D24] disabled:opacity-50 transition-colors"
+                  >
+                    {savingOutcome ? 'Saving...' : 'Save Outcome'}
+                  </button>
+                </div>
+              </div>
+            </Section>
+          )}
         </div>
       </div>
+
+      {/* ── Bottom Trigger Bar (matches "FI Trigger" in screenshot) ──────── */}
+      <div className="fixed bottom-0 left-60 right-0 bg-white border-t border-gray-200 px-8 py-3 flex items-center justify-end gap-3 z-10">
+        <span className="text-xs text-gray-500 mr-auto">
+          Application ID : <span className="font-mono font-semibold text-gray-700">{data.app_id}</span>
+        </span>
+        {data.status !== 'completed' && (
+          <button
+            onClick={handleTrigger}
+            disabled={triggering}
+            className="flex items-center gap-2 px-5 py-2 bg-[#C8102E] text-white text-sm font-semibold rounded-lg hover:bg-[#A00D24] disabled:opacity-60 transition-colors shadow-sm"
+          >
+            <Send size={14} />
+            {triggering ? 'Sending...' : data.status === 'link_sent' ? 'Re-trigger Self-PD' : 'Trigger Self-PD'}
+          </button>
+        )}
+        {data.status === 'completed' && (
+          <span className="flex items-center gap-1.5 px-4 py-2 bg-emerald-50 text-emerald-700 text-sm font-medium rounded-lg border border-emerald-200">
+            <CheckCircle size={14} />
+            PD Completed
+          </span>
+        )}
+      </div>
+
+      {/* Bottom spacer so content isn't hidden behind fixed bar */}
+      <div className="h-16" />
 
       <PdLinkModal
         isOpen={!!modal}
@@ -444,6 +483,7 @@ export default function ApplicationDetail() {
         customerName={modal?.customerName}
         appId={modal?.appId}
         mobile={modal?.mobile}
+        demoMode={appMode === 'demo'}
       />
     </OfficerLayout>
   );
