@@ -1,69 +1,85 @@
-// Matches the Aditya Birla Capital logo from the screenshot:
-// Red circular icon with "aditya birla capital" text below/beside it.
+// Matches the actual Aditya Birla Capital logo:
+// Geometric square icon (triangular facets in red/orange/yellow) + ADITYA BIRLA / CAPITAL text
 export default function AbclLogo({ height = 40, white = false }) {
-  const textPrimary   = white ? '#ffffff' : '#1a1a1a';
-  const textSecondary = white ? 'rgba(255,255,255,0.85)' : '#C8102E';
-  const iconBg        = white ? 'rgba(255,255,255,0.25)' : '#C8102E';
-  const iconFg        = '#ffffff';
+  const h = height;
+  const iconSize = h;                      // square icon is same height as total
+  const textX = iconSize + 10;
+  const totalWidth = iconSize + 10 + 110;
 
-  // Scale everything from a 160×44 viewBox
-  const scale = height / 44;
+  // On red background: icon becomes white outline, text becomes white
+  const captialColor  = white ? '#ffffff' : '#C8102E';
+  const adityaColor   = white ? 'rgba(255,255,255,0.9)' : '#1a1a1a';
+  const bgOpacity     = white ? 0 : 1;    // icon bg is transparent on red bg
+
+  // Icon dimensions (drawn in a square)
+  const s = iconSize;
+  const cx = s / 2;
+  const cy = s / 2;
 
   return (
     <svg
-      width={Math.round(160 * scale)}
-      height={height}
-      viewBox="0 0 160 44"
+      width={totalWidth}
+      height={h}
+      viewBox={`0 0 ${totalWidth} ${h}`}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-label="Aditya Birla Capital"
     >
-      {/* ── Red circle icon ── */}
-      <circle cx="22" cy="22" r="20" fill={iconBg} />
+      {/* ── Geometric square icon ── */}
+      {/* Outer square background */}
+      <rect x="0" y="0" width={s} height={s} rx="2"
+        fill={white ? 'rgba(255,255,255,0.15)' : '#7B1E1E'} />
 
-      {/* Stylised "AB" mark inside circle — simplified swoosh matching real logo */}
-      {/* Outer arc */}
-      <path
-        d="M13 28 C13 18 17 13 22 13 C27 13 31 18 31 28"
-        stroke={iconFg} strokeWidth="2.5" strokeLinecap="round" fill="none"
-      />
-      {/* Inner leaf / drop */}
-      <path
-        d="M22 13 C22 13 26 17 26 22 C26 26 24 29 22 29 C20 29 18 26 18 22 C18 17 22 13 22 13Z"
-        fill={iconFg} opacity="0.9"
-      />
-      {/* Bottom dot */}
-      <circle cx="22" cy="31" r="1.8" fill={iconFg} />
+      {/* Triangular facets — approximating the geometric diamond/sunburst pattern */}
+      {/* Top-left triangle: dark red */}
+      <polygon points={`0,0 ${cx},0 ${cx},${cy}`} fill={white ? 'rgba(255,255,255,0.5)' : '#9B2335'} />
+      {/* Top-right triangle: medium red */}
+      <polygon points={`${cx},0 ${s},0 ${cx},${cy}`} fill={white ? 'rgba(255,255,255,0.35)' : '#C8102E'} />
+      {/* Right triangle: orange */}
+      <polygon points={`${s},0 ${s},${cy} ${cx},${cy}`} fill={white ? 'rgba(255,255,255,0.55)' : '#D4500A'} />
+      {/* Bottom-right triangle: golden orange */}
+      <polygon points={`${s},${cy} ${s},${s} ${cx},${cy}`} fill={white ? 'rgba(255,255,255,0.25)' : '#E8891A'} />
+      {/* Bottom triangle: amber/yellow */}
+      <polygon points={`${cx},${cy} ${s},${s} ${cx},${s}`} fill={white ? 'rgba(255,255,255,0.4)' : '#D4750A'} />
+      {/* Bottom-left triangle: orange-red */}
+      <polygon points={`0,${s} ${cx},${s} ${cx},${cy}`} fill={white ? 'rgba(255,255,255,0.3)' : '#B84210'} />
+      {/* Left triangle: deep red */}
+      <polygon points={`0,0 ${cx},${cy} 0,${cy}`} fill={white ? 'rgba(255,255,255,0.45)' : '#8B1A1A'} />
+      {/* Left-bottom triangle: red */}
+      <polygon points={`0,${cy} ${cx},${cy} 0,${s}`} fill={white ? 'rgba(255,255,255,0.2)' : '#A52020'} />
 
-      {/* ── Text block ── */}
-      {/* "aditya birla" — small caps */}
+      {/* Inner highlight lines — thin white lines suggesting facets */}
+      <line x1={cx} y1="0" x2={cx} y2={s} stroke="rgba(255,255,255,0.15)" strokeWidth="0.5"/>
+      <line x1="0" y1={cy} x2={s} y2={cy} stroke="rgba(255,255,255,0.15)" strokeWidth="0.5"/>
+      <line x1="0" y1="0" x2={s} y2={s} stroke="rgba(255,255,255,0.1)" strokeWidth="0.5"/>
+      <line x1={s} y1="0" x2="0" y2={s} stroke="rgba(255,255,255,0.1)" strokeWidth="0.5"/>
+
+      {/* ── Text ── */}
+      {/* "ADITYA BIRLA" — dark, small, wide letter-spacing */}
       <text
-        x="48" y="18"
+        x={textX}
+        y={h * 0.38}
         fontFamily="Inter, Arial, sans-serif"
-        fontSize="10"
+        fontSize={h * 0.24}
         fontWeight="600"
-        letterSpacing="1.5"
-        fill={textPrimary}
-        textAnchor="start"
+        letterSpacing="2"
+        fill={adityaColor}
       >
         ADITYA BIRLA
       </text>
 
-      {/* "capital" — larger red */}
+      {/* "CAPITAL" — bold red, larger */}
       <text
-        x="48" y="33"
+        x={textX}
+        y={h * 0.82}
         fontFamily="Inter, Arial, sans-serif"
-        fontSize="16"
-        fontWeight="700"
-        letterSpacing="0.5"
-        fill={textSecondary}
-        textAnchor="start"
+        fontSize={h * 0.38}
+        fontWeight="800"
+        letterSpacing="1"
+        fill={captialColor}
       >
-        Capital
+        CAPITAL
       </text>
-
-      {/* Thin separator line between icon and text */}
-      <line x1="44" y1="8" x2="44" y2="36" stroke={white ? 'rgba(255,255,255,0.3)' : '#e0e0e0'} strokeWidth="1" />
     </svg>
   );
 }

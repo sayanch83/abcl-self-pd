@@ -62,9 +62,12 @@ function PhotoUploader({ label, type, sessionToken, onUploaded }) {
 
       const res = await pdApi.uploadPhoto(sessionToken, formData);
       const photoData = res.data.data;
+      const previewUrl = URL.createObjectURL(file);
 
-      setPhoto({ ...photoData, preview: URL.createObjectURL(file) });
-      onUploaded(photoData);
+      // Store preview on the photoData object so parent state keeps it across steps
+      const photoWithPreview = { ...photoData, preview: previewUrl };
+      setPhoto(photoWithPreview);
+      onUploaded(photoWithPreview);
 
       if (!lat) toast('Location not captured. Please allow location access for geo-tagging.', { icon: '⚠️' });
     } catch (err) {
@@ -217,9 +220,14 @@ export default function CustomerPdPage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
+      // Strip client-only 'preview' blob URLs before sending to backend
+      const cleanPhotos = Object.values(photos)
+        .filter(Boolean)
+        .map(({ preview, ...rest }) => rest);
+
       await pdApi.submit(sessionToken, {
         ...form,
-        photos: Object.values(photos).filter(Boolean),
+        photos: cleanPhotos,
       });
       setStep(6);
     } catch (err) {

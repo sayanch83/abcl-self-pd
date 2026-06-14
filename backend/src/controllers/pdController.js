@@ -168,6 +168,14 @@ async function submitPd(req, res) {
     } = req.body;
 
     const submissionId = uuidv4();
+
+    // photos may arrive as a JSON string (axios serialises arrays in body) or as an array
+    let photosArray = photos || [];
+    if (typeof photosArray === 'string') {
+      try { photosArray = JSON.parse(photosArray); } catch { photosArray = []; }
+    }
+    if (!Array.isArray(photosArray)) photosArray = [];
+
     db.prepare(`
       INSERT INTO pd_submissions (
         id, application_id, pd_link_id,
@@ -187,7 +195,7 @@ async function submitPd(req, res) {
       dependents ? parseInt(dependents) : null,
       existingLoans, loanPurpose,
       interactionQuality, customerCooperative ? 1 : 0, additionalNotes,
-      JSON.stringify(photos || [])
+      JSON.stringify(photosArray)
     );
 
     // Mark link as used
