@@ -56,4 +56,12 @@ export const pdApi = {
     }),
 };
 
+export const demoConfigApi = {
+  getAll:      ()        => api.get('/demo-config'),
+  create:      (data)    => api.post('/demo-config', data),
+  update:      (id, data)=> api.put(`/demo-config/${id}`, data),
+  remove:      (id)      => api.delete(`/demo-config/${id}`),
+  resetStatus: (id)      => api.post(`/demo-config/${id}/reset`),
+};
+
 export default api;

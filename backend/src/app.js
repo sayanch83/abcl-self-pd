@@ -12,6 +12,7 @@ const logger = require('./utils/logger');
 const authRoutes = require('./routes/authRoutes');
 const applicationRoutes = require('./routes/applicationRoutes');
 const pdRoutes = require('./routes/pdRoutes');
+const demoConfigRoutes = require('./routes/demoConfigRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -46,6 +47,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/pd', pdRoutes);
+app.use('/api/demo-config', demoConfigRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

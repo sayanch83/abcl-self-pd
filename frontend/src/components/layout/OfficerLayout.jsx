@@ -1,11 +1,12 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FileText, LogOut, ChevronRight, User } from 'lucide-react';
+import { LayoutDashboard, FileText, Settings2, LogOut, ChevronRight } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import AbclLogo from '../common/AbclLogo';
 
 const navItems = [
-  { to: '/officer/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/officer/applications', icon: FileText, label: 'Applications' },
+  { to: '/officer/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/officer/applications', icon: FileText,         label: 'Applications' },
+  { to: '/officer/demo-config',  icon: Settings2,        label: 'Demo Config', badge: 'Admin' },
 ];
 
 export default function OfficerLayout({ children }) {
@@ -29,7 +30,7 @@ export default function OfficerLayout({ children }) {
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map(({ to, icon: Icon, label }) => {
+          {navItems.map(({ to, icon: Icon, label, badge }) => {
             const active = location.pathname === to || location.pathname.startsWith(to + '/');
             return (
               <Link
@@ -42,8 +43,11 @@ export default function OfficerLayout({ children }) {
                   }`}
               >
                 <Icon size={17} />
-                <span>{label}</span>
-                {active && <ChevronRight size={14} className="ml-auto" />}
+                <span className="flex-1">{label}</span>
+                {badge && !active && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{badge}</span>
+                )}
+                {active && <ChevronRight size={14} />}
               </Link>
             );
           })}
@@ -77,8 +81,7 @@ export default function OfficerLayout({ children }) {
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span className="font-medium text-gray-800">Self-PD Portal</span>
             <ChevronRight size={14} />
-            <span>{navItems.find(n => location.pathname.startsWith(n.to))?.label || 'Page'}</span>
-          </div>
+            <span>{navItems.find(n => location.pathname.startsWith(n.to))?.label || 'Page'}</span>          </div>
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
             <span>Online</span>

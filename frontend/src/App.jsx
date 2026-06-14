@@ -6,6 +6,7 @@ import OfficerLogin from './pages/officer/Login';
 import OfficerDashboard from './pages/officer/Dashboard';
 import Applications from './pages/officer/Applications';
 import ApplicationDetail from './pages/officer/ApplicationDetail';
+import DemoConfig from './pages/officer/DemoConfig';
 import SelfPdPage from './pages/customer/SelfPdPage';
 
 import './styles/global.css';
@@ -47,6 +48,9 @@ export default function App() {
         } />
         <Route path="/officer/applications/:id" element={
           <ProtectedRoute><ApplicationDetail /></ProtectedRoute>
+        } />
+        <Route path="/officer/demo-config" element={
+          <ProtectedRoute><DemoConfig /></ProtectedRoute>
         } />
 
         {/* Customer Self-PD */}
