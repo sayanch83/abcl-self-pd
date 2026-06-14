@@ -1,92 +1,95 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FileText, LogOut, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, FileText, Wifi, UserCircle, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import AbclLogo from '../common/AbclLogo';
 
 const navItems = [
-  { to: '/officer/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/officer/applications', icon: FileText,         label: 'Applications' },
+  { to: '/officer/dashboard',    label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/officer/applications', label: 'Applications', icon: FileText },
 ];
 
-export default function OfficerLayout({ children }) {
+export default function OfficerLayout({ children, appId }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { officer, logout } = useAuthStore();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/officer/login');
-  };
+  const handleLogout = () => { logout(); navigate('/officer/login'); };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
-      {/* Sidebar */}
-      <aside className="w-60 flex-shrink-0 bg-white border-r border-gray-100 flex flex-col">
-        {/* Logo */}
-        <div className="px-5 py-4 border-b border-gray-100">
-          <AbclLogo height={38} />
-        </div>
+    <div className="min-h-screen bg-gray-100 flex flex-col">
 
-        {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map(({ to, icon: Icon, label }) => {
+      {/* ── Red top navigation bar — matches existing screen exactly ── */}
+      <header className="bg-[#C8102E] text-white flex-shrink-0 sticky top-0 z-50 shadow-md">
+        <div className="flex items-center h-12 px-4 gap-6">
+
+          {/* Logo area */}
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <AbclLogo height={36} />
+          </div>
+
+          {/* Vertical divider */}
+          <div className="h-6 w-px bg-white/30" />
+
+          {/* Nav links */}
+          {navItems.map(({ to, label, icon: Icon }) => {
             const active = location.pathname === to || location.pathname.startsWith(to + '/');
             return (
               <Link
                 key={to}
                 to={to}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-                  ${active
-                    ? 'bg-[#F5E6E9] text-[#C8102E]'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
+                className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded transition-all whitespace-nowrap
+                  ${active ? 'bg-white/20 text-white' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
               >
-                <Icon size={17} />
-                <span className="flex-1">{label}</span>
-                {active && <ChevronRight size={14} />}
+                <Icon size={13} />
+                {label}
               </Link>
             );
           })}
-        </nav>
 
-        {/* User info + logout */}
-        <div className="px-3 py-4 border-t border-gray-100">
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-gray-50 mb-2">
-            <div className="w-8 h-8 rounded-full bg-[#C8102E] flex items-center justify-center text-white text-xs font-semibold">
-              {officer?.name?.split(' ').map(n => n[0]).join('').slice(0, 2)}
+          {/* Application ID — shown when on a detail page */}
+          {appId && (
+            <>
+              <div className="h-6 w-px bg-white/30" />
+              <span className="text-xs text-white/90 font-medium whitespace-nowrap">
+                Application ID : <span className="font-bold">{appId}</span>
+              </span>
+            </>
+          )}
+
+          {/* Right side */}
+          <div className="ml-auto flex items-center gap-4">
+            <div className="flex items-center gap-1.5 text-xs text-white/80">
+              <Wifi size={13} />
+              <span>Online</span>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-gray-800 truncate">{officer?.name}</p>
-              <p className="text-xs text-gray-500 truncate">{officer?.branch}</p>
+            <div className="h-4 w-px bg-white/30" />
+            {/* User menu */}
+            <div className="relative group">
+              <button className="flex items-center gap-1.5 text-xs text-white/90 hover:text-white">
+                <UserCircle size={20} />
+              </button>
+              {/* Dropdown */}
+              <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                <div className="px-3 py-2 border-b border-gray-100">
+                  <p className="text-xs font-semibold text-gray-800">{officer?.name}</p>
+                  <p className="text-xs text-gray-500">{officer?.employeeId} · {officer?.branch}</p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <LogOut size={13} />
+                  Sign Out
+                </button>
+              </div>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            <LogOut size={14} />
-            Sign Out
-          </button>
         </div>
-      </aside>
+      </header>
 
-      {/* Main content */}
+      {/* ── Page content ── */}
       <main className="flex-1 overflow-y-auto">
-        {/* Top bar */}
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <span className="font-medium text-gray-800">Self-PD Portal</span>
-            <ChevronRight size={14} />
-            <span>{navItems.find(n => location.pathname.startsWith(n.to))?.label || 'Page'}</span>          </div>
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
-            <span>Online</span>
-            <span className="ml-2 text-gray-400">|</span>
-            <span className="font-medium text-gray-600">{officer?.employeeId}</span>
-          </div>
-        </div>
-
-        <div className="p-6">
+        <div className="p-5">
           {children}
         </div>
       </main>

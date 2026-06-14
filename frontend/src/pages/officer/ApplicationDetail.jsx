@@ -192,43 +192,75 @@ export default function ApplicationDetail() {
   const s = submission; // shorthand
 
   return (
-    <OfficerLayout>
-      {/* ── Top Info Bar (matches screenshot) ─────────────────────────────── */}
-      <div className="bg-white border border-gray-200 rounded-lg px-5 py-3 mb-4 text-xs text-gray-600">
-        <div className="flex items-center flex-wrap gap-x-5 gap-y-1">
-          <span>
-            <span className="font-semibold text-gray-800">{data.customer_name}</span>
-            {' · '}<span className="capitalize">{data.employment_type?.replace('_', ' ')}</span>
-          </span>
-          <span>
-            <span className="text-[#C8102E] font-mono font-semibold">{data.app_id}</span>
-          </span>
-          <span>Unsecured Loan</span>
-          <span>Amount : {data.loan_amount ? `₹${data.loan_amount.toLocaleString('en-IN')}` : '—'}</span>
-          <span>Stage : CRDT</span>
-          <span>Status : {data.status === 'completed' ? 'PD Completed' : data.status === 'link_sent' ? 'Awaiting Customer' : 'Pending PD'}</span>
-          <span>Branch : {data.branch}</span>
-          <div className="ml-auto flex items-center gap-2">
-            <StatusBadge status={data.status} />
-            {s?.pd_outcome && (
-              <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${s.pd_outcome === 'positive' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                {s.pd_outcome === 'positive' ? '✓ Positive PD' : '✗ Negative PD'}
+    <OfficerLayout appId={data.app_id}>
+      {/* ── White info bar — matches existing screen's two-row strip ── */}
+      <div className="bg-white border border-gray-200 rounded-t-none rounded-b-none -mx-5 -mt-5 px-6 py-0 mb-0 shadow-sm">
+        {/* Row 1 */}
+        <div className="flex items-center justify-between py-2 border-b border-gray-100">
+          <div className="flex items-center gap-4 flex-wrap text-xs text-gray-700">
+            <span className="font-semibold text-gray-900">
+              {data.employment_type === 'salaried' ? 'Mr./Ms.' : ''} {data.customer_name}
+            </span>
+            <span className="text-gray-400">|</span>
+            <span>{data.product === 'Personal Loan' ? 'PL' : data.product === 'Business Loan' ? 'BL' : data.product === 'Home Loan' ? 'HL' : 'LAP'}</span>
+            <span className="text-gray-400">|</span>
+            <span>Unsecured Loan</span>
+            <span className="text-gray-400">|</span>
+            <span>Assigned To : <strong>{data.officer_name}</strong></span>
+            <span className="text-gray-400">|</span>
+            <span>Document Status : <strong>FTR</strong></span>
+          </div>
+          {/* Action buttons — right side, matches Submit/Approve/Decline */}
+          <div className="flex items-center gap-1.5 flex-shrink-0 ml-4">
+            {data.status !== 'completed' ? (
+              <button
+                onClick={handleTrigger}
+                disabled={triggering}
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-[#C8102E] text-white text-xs font-semibold rounded hover:bg-[#A00D24] disabled:opacity-60 transition-colors"
+              >
+                <Send size={12} />
+                {triggering ? 'Sending...' : data.status === 'link_sent' ? 'Re-trigger Self-PD' : 'Trigger Self-PD'}
+              </button>
+            ) : (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded">
+                <CheckCircle size={12} />
+                PD Completed
               </span>
             )}
-            <button onClick={fetchData} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-colors">
+            <button
+              onClick={fetchData}
+              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+            >
               <RefreshCw size={13} />
             </button>
           </div>
         </div>
-        {data.officer_name && (
-          <div className="mt-1.5 pt-1.5 border-t border-gray-100 text-gray-400">
-            Assigned to : <span className="text-gray-600">{data.officer_name}</span>
+        {/* Row 2 */}
+        <div className="flex items-center gap-4 flex-wrap py-1.5 text-xs text-gray-600">
+          <span>Loan Amount : <strong>₹{data.loan_amount?.toLocaleString('en-IN')}</strong></span>
+          <span className="text-gray-300">|</span>
+          <span>Stage : <strong>CRDT</strong></span>
+          <span className="text-gray-300">|</span>
+          <span>Status : <strong>{data.status === 'completed' ? 'PD Done' : data.status === 'link_sent' ? 'Awaiting' : 'Queue'}</strong></span>
+          <span className="text-gray-300">|</span>
+          <span>Branch : <strong>{data.branch}</strong></span>
+          <span className="text-gray-300">|</span>
+          <span>Employment : <strong className="capitalize">{data.employment_type?.replace('_', ' ')}</strong></span>
+          <div className="ml-auto">
+            <StatusBadge status={data.status} />
+            {s?.pd_outcome && (
+              <span className={`ml-2 px-2 py-0.5 text-xs font-semibold rounded-full ${
+                s.pd_outcome === 'positive' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+              }`}>
+                {s.pd_outcome === 'positive' ? '✓ Positive' : '✗ Negative'}
+              </span>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* ── Main Layout ───────────────────────────────────────────────────── */}
-      <div className="flex gap-4 items-start">
+      <div className="flex gap-4 items-start mt-4">
         {/* Left column — applicant summary */}
         <div className="w-56 flex-shrink-0 space-y-3">
           <div className="bg-white border border-gray-200 rounded-lg p-4">
@@ -449,32 +481,6 @@ export default function ApplicationDetail() {
           )}
         </div>
       </div>
-
-      {/* ── Bottom Trigger Bar (matches "FI Trigger" in screenshot) ──────── */}
-      <div className="fixed bottom-0 left-60 right-0 bg-white border-t border-gray-200 px-8 py-3 flex items-center justify-end gap-3 z-10">
-        <span className="text-xs text-gray-500 mr-auto">
-          Application ID : <span className="font-mono font-semibold text-gray-700">{data.app_id}</span>
-        </span>
-        {data.status !== 'completed' && (
-          <button
-            onClick={handleTrigger}
-            disabled={triggering}
-            className="flex items-center gap-2 px-5 py-2 bg-[#C8102E] text-white text-sm font-semibold rounded-lg hover:bg-[#A00D24] disabled:opacity-60 transition-colors shadow-sm"
-          >
-            <Send size={14} />
-            {triggering ? 'Sending...' : data.status === 'link_sent' ? 'Re-trigger Self-PD' : 'Trigger Self-PD'}
-          </button>
-        )}
-        {data.status === 'completed' && (
-          <span className="flex items-center gap-1.5 px-4 py-2 bg-emerald-50 text-emerald-700 text-sm font-medium rounded-lg border border-emerald-200">
-            <CheckCircle size={14} />
-            PD Completed
-          </span>
-        )}
-      </div>
-
-      {/* Bottom spacer so content isn't hidden behind fixed bar */}
-      <div className="h-16" />
 
       <PdLinkModal
         isOpen={!!modal}

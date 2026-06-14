@@ -40,7 +40,7 @@ export default function OfficerLogin() {
 
         <div className="relative z-10 flex flex-col h-full">
           {/* Logo on red bg */}
-          <AbclLogo height={44} white />
+          <AbclLogo height={44} />
 
           <div className="flex-1 flex flex-col justify-center">
             <div className="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center mb-6">
