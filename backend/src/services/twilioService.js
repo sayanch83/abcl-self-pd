@@ -4,82 +4,120 @@ const logger = require('../utils/logger');
 let client = null;
 
 function getTwilioClient() {
-  if (!client) {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (client) return client;
 
-    if (!accountSid || !authToken || accountSid.startsWith('AC_dummy')) {
-      logger.warn('Twilio not configured — SMS will be logged only');
-      return null;
-    }
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken  = process.env.TWILIO_AUTH_TOKEN;
 
-    client = twilio(accountSid, authToken);
+  if (!accountSid || !authToken) {
+    logger.warn('Twilio not configured (missing ACCOUNT_SID or AUTH_TOKEN) — running in simulation mode');
+    return null;
   }
+
+  client = twilio(accountSid, authToken);
+  logger.info(`Twilio client initialised — SID: ${accountSid.slice(0, 8)}...`);
   return client;
 }
 
-async function sendSelfPdLink({ mobile, customerName, pdLink, appId }) {
-  const formattedMobile = mobile.startsWith('+') ? mobile : `+91${mobile}`;
+// Returns the correct "from" params for twilioClient.messages.create()
+// Prefers TWILIO_MESSAGING_SERVICE_SID (bypasses A2P number block),
+// falls back to TWILIO_PHONE_NUMBER.
+function getSmsFrom() {
+  if (process.env.TWILIO_MESSAGING_SERVICE_SID) {
+    return { messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID };
+  }
+  if (process.env.TWILIO_PHONE_NUMBER) {
+    return { from: process.env.TWILIO_PHONE_NUMBER };
+  }
+  throw new Error(
+    'Neither TWILIO_MESSAGING_SERVICE_SID nor TWILIO_PHONE_NUMBER is set in environment variables'
+  );
+}
 
-  const messageBody = 
-    `Dear ${customerName},\n\n` +
-    `Aditya Birla Capital Ltd. requests you to complete your Self Personal Discussion for Loan Application ${appId}.\n\n` +
-    `Click the link below to proceed (valid for 24 hours):\n${pdLink}\n\n` +
-    `Do not share this link with anyone.\n\n` +
-    `For queries, call 1800-270-7000\n- ABCL Team`;
+// ── Send Self-PD link via SMS ─────────────────────────────────────────────────
+async function sendSelfPdLink({ mobile, customerName, pdLink, appId }) {
+  const to = mobile.startsWith('+') ? mobile : `+91${mobile}`;
+
+  // Split into two messages — Indian carriers often strip URLs from
+  // mixed text+link messages, same pattern used in reKYC app.
+  const msg1 =
+    `Dear ${customerName}, Aditya Birla Capital Ltd. requests you to complete your ` +
+    `Self Personal Discussion for Loan Application ${appId}. ` +
+    `The link will follow in the next message. Valid 24 hrs. -ABCL`;
+
+  const msg2 =
+    `ABCL Self-PD link for ${appId}: ${pdLink}\n` +
+    `Do not share this link. Helpline: 1800-270-7000`;
 
   const twilioClient = getTwilioClient();
 
   if (!twilioClient) {
-    logger.info(`[SMS SIMULATION] To: ${formattedMobile}`);
-    logger.info(`[SMS SIMULATION] Body: ${messageBody}`);
+    logger.info(`[SIMULATION] PD link SMS to ${to}`);
+    logger.info(`[SIMULATION] msg1: ${msg1}`);
+    logger.info(`[SIMULATION] msg2: ${msg2}`);
     return { sid: `SIM_${Date.now()}`, status: 'simulated' };
   }
 
   try {
-    const message = await twilioClient.messages.create({
-      body: messageBody,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: formattedMobile,
-    });
+    const fromParams = getSmsFrom();
+    logger.info(`Sending PD link SMS to ${to} via ${JSON.stringify(fromParams)}`);
 
-    logger.info(`SMS sent to ${formattedMobile}, SID: ${message.sid}`);
-    return { sid: message.sid, status: message.status };
+    const r1 = await twilioClient.messages.create({ ...fromParams, to, body: msg1 });
+    logger.info(`SMS msg1 sent — SID: ${r1.sid}, status: ${r1.status}`);
+
+    // Small delay so messages arrive in order
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    const r2 = await twilioClient.messages.create({ ...fromParams, to, body: msg2 });
+    logger.info(`SMS msg2 (link) sent — SID: ${r2.sid}, status: ${r2.status}`);
+
+    return { sid: r2.sid, status: r2.status };
   } catch (error) {
-    logger.error(`SMS failed to ${formattedMobile}: ${error.message}`);
+    logger.error(`PD link SMS failed to ${to}: ${error.message} (code: ${error.code || 'n/a'})`);
     throw new Error(`Failed to send SMS: ${error.message}`);
   }
 }
 
-async function sendOtp({ mobile, otp, customerName }) {
-  const formattedMobile = mobile.startsWith('+') ? mobile : `+91${mobile}`;
-
-  const messageBody =
-    `Dear ${customerName},\n\n` +
-    `Your OTP for ABCL Self-PD verification is: ${otp}\n\n` +
-    `This OTP is valid for 10 minutes. Do not share it with anyone.\n\n` +
-    `- ABCL Team`;
-
+// ── Send OTP via Twilio Verify ────────────────────────────────────────────────
+// Twilio Verify is a separate product (TWILIO_VERIFY_SID starts with VA...).
+// It is exempt from A2P 10DLC registration and works on Twilio trial accounts.
+// It handles rate limiting, expiry (10 min), and attempt counting automatically.
+async function sendOtpVerify(mobile) {
+  const to = mobile.startsWith('+') ? mobile : `+91${mobile}`;
+  const verifySid = process.env.TWILIO_VERIFY_SID;
   const twilioClient = getTwilioClient();
 
-  if (!twilioClient) {
-    logger.info(`[OTP SIMULATION] To: ${formattedMobile}, OTP: ${otp}`);
-    return { sid: `SIM_OTP_${Date.now()}`, status: 'simulated' };
+  if (!twilioClient || !verifySid) {
+    logger.warn(`[SIMULATION] Twilio Verify OTP to ${to} — client=${!!twilioClient} verifySid=${!!verifySid}`);
+    return { status: 'simulated' };
   }
 
-  try {
-    const message = await twilioClient.messages.create({
-      body: messageBody,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: formattedMobile,
-    });
+  const verification = await twilioClient.verify.v2
+    .services(verifySid)
+    .verifications.create({ to, channel: 'sms' });
 
-    logger.info(`OTP sent to ${formattedMobile}, SID: ${message.sid}`);
-    return { sid: message.sid, status: message.status };
-  } catch (error) {
-    logger.error(`OTP SMS failed: ${error.message}`);
-    throw new Error(`Failed to send OTP: ${error.message}`);
-  }
+  logger.info(`Twilio Verify OTP sent to ${to} — status: ${verification.status}`);
+  return { status: verification.status };
 }
 
-module.exports = { sendSelfPdLink, sendOtp };
+// ── Verify OTP via Twilio Verify ──────────────────────────────────────────────
+async function checkOtpVerify(mobile, code) {
+  const to = mobile.startsWith('+') ? mobile : `+91${mobile}`;
+  const verifySid = process.env.TWILIO_VERIFY_SID;
+  const twilioClient = getTwilioClient();
+
+  if (!twilioClient || !verifySid) {
+    // Simulation mode — any 6-digit code passes
+    logger.warn(`[SIMULATION] OTP check for ${to} — accepting any 6-digit code`);
+    return { approved: code?.length === 6, status: 'approved' };
+  }
+
+  const check = await twilioClient.verify.v2
+    .services(verifySid)
+    .verificationChecks.create({ to, code });
+
+  logger.info(`Twilio Verify check for ${to} — status: ${check.status}`);
+  return { approved: check.status === 'approved', status: check.status };
+}
+
+module.exports = { sendSelfPdLink, sendOtpVerify, checkOtpVerify };
