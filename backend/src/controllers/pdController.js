@@ -187,16 +187,16 @@ async function submitPd(req, res) {
       try { photosArray = JSON.parse(photosArray); } catch { photosArray = []; }
     }
     if (!Array.isArray(photosArray)) photosArray = [];
-    // Strip client-only fields
-    photosArray = photosArray.map(({ preview, url, ...rest }) => ({ ...rest, url: url || null }));
+    // Strip only client-side preview blob URLs — keep the actual url (base64 data url)
+    photosArray = photosArray.map(({ preview, ...rest }) => rest);
+    // Remove any client-sent video placeholder (url=null) — server version has the real url
+    photosArray = photosArray.filter(p => !(p.mediaType === 'video' && !p.url));
 
-    // Merge server-stored video (uploaded separately, stored on pd_link)
+    // Merge server-stored video with full base64 url (uploaded separately, stored on pd_link)
     if (pdLink.session_video) {
       try {
         const videoData = JSON.parse(pdLink.session_video);
-        // Only add if not already in photosArray
-        const alreadyPresent = photosArray.some(p => p.mediaType === 'video');
-        if (!alreadyPresent) photosArray.push(videoData);
+        photosArray.push(videoData); // always use server version
       } catch { /* ignore malformed video data */ }
     }
 

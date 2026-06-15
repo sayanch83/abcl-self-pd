@@ -148,6 +148,14 @@ function VideoRecorder({ label, type, sessionToken, onUploaded, existing }) {
   useEffect(() => { if (existing) setVideo(existing); }, [existing]);
   useEffect(() => () => stopStream(), []);
 
+  // Set srcObject when recording starts — must run after video element renders
+  useEffect(() => {
+    if (state === 'recording' && videoPreviewRef.current && streamRef.current) {
+      videoPreviewRef.current.srcObject = streamRef.current;
+      videoPreviewRef.current.play().catch(() => {});
+    }
+  }, [state]);
+
   const stopStream = () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
     clearInterval(timerRef.current);
@@ -172,12 +180,7 @@ function VideoRecorder({ label, type, sessionToken, onUploaded, existing }) {
       });
       streamRef.current = stream;
 
-      if (videoPreviewRef.current) {
-        videoPreviewRef.current.srcObject = stream;
-        videoPreviewRef.current.play();
-      }
-
-      // Pick best supported MIME type
+      // Don't set srcObject here — useEffect above handles it after state change renders
       const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4']
         .find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm';
 
@@ -190,12 +193,12 @@ function VideoRecorder({ label, type, sessionToken, onUploaded, existing }) {
       };
 
       mediaRecorderRef.current = mr;
-      mr.start(1000); // collect data every second
+      mr.start(1000);
       setState('recording');
       setDuration(0);
 
       timerRef.current = setInterval(() => setDuration(d => {
-        if (d >= 59) { stopRecording(); return 60; } // 60s max
+        if (d >= 59) { stopRecording(); return 60; }
         return d + 1;
       }), 1000);
     } catch (err) {
@@ -223,9 +226,11 @@ function VideoRecorder({ label, type, sessionToken, onUploaded, existing }) {
       if (lng) formData.append('lng', lng);
 
       const res = await pdApi.uploadVideo(sessionToken, formData);
-      const videoData = { ...res.data.data, preview: URL.createObjectURL(blob) };
+      // Store blob URL as preview — stays valid for current session
+      const previewUrl = URL.createObjectURL(blob);
+      const videoData = { ...res.data.data, preview: previewUrl };
       setVideo(videoData);
-      onUploaded(videoData);
+      onUploaded(videoData);      // parent state gets preview too
       setState('done');
 
       if (!lat) toast('Location not captured for video.', { icon: '⚠️' });
@@ -257,22 +262,26 @@ function VideoRecorder({ label, type, sessionToken, onUploaded, existing }) {
 
   return (
     <div className="border-2 border-dashed border-blue-200 rounded-xl overflow-hidden">
-      {/* Recording preview */}
-      {state === 'recording' && (
-        <div className="relative bg-black">
-          <video ref={videoPreviewRef} className="w-full h-48 object-cover" muted playsInline />
-          <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full">
-            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-            REC {String(Math.floor(duration / 60)).padStart(2,'0')}:{String(duration % 60).padStart(2,'0')}
-          </div>
-          <div className="absolute bottom-2 right-2 text-white text-xs opacity-75">Max 60s</div>
+      {/* Live recording preview — always mounted so ref is ready, hidden when not recording */}
+      <div className={`relative bg-black ${state === 'recording' ? 'block' : 'hidden'}`}>
+        <video
+          ref={videoPreviewRef}
+          className="w-full h-48 object-cover"
+          muted
+          playsInline
+          style={{ display: 'block' }}
+        />
+        <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+          <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+          REC {String(Math.floor(duration / 60)).padStart(2,'0')}:{String(duration % 60).padStart(2,'0')}
         </div>
-      )}
+        <div className="absolute bottom-2 right-2 text-white text-xs opacity-75">Max 60s</div>
+      </div>
 
-      {/* Done — show preview */}
+      {/* Done — show playback preview */}
       {state === 'done' && video?.preview && (
         <div className="relative">
-          <video src={video.preview} className="w-full h-48 object-cover" controls playsInline />
+          <video src={video.preview} className="w-full h-48 bg-black" controls playsInline />
           <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
             {video.lat
               ? <><MapPin size={10} />{video.lat.toFixed(4)}, {video.lng.toFixed(4)}</>
@@ -717,7 +726,14 @@ export default function CustomerPdPage() {
             <option value="5_10">5–10 years</option>
             <option value="more_than_10">More than 10 years</option>
           </Select>
-          <Input label="Monthly Net Income (₹) *" type="number" placeholder="e.g. 75000" value={form.monthlyIncome} onChange={e => { setField('monthlyIncome', e.target.value); setStepErrors(se => ({...se, monthlyIncome: ''})); }} error={stepErrors.monthlyIncome} />
+          <Input label="Monthly Net Income (₹) *" type="text" inputMode="numeric" placeholder="e.g. ₹75,000"
+            value={form.monthlyIncome ? `₹${Number(form.monthlyIncome.replace(/[^\d]/g, '')).toLocaleString('en-IN')}` : ''}
+            onChange={e => {
+              const raw = e.target.value.replace(/[^\d]/g, '');
+              setField('monthlyIncome', raw);
+              setStepErrors(se => ({...se, monthlyIncome: ''}));
+            }}
+            error={stepErrors.monthlyIncome} />
         </>
       ) : (
         <>
@@ -739,7 +755,14 @@ export default function CustomerPdPage() {
             <option value="5_10">5–10 years</option>
             <option value="more_than_10">More than 10 years</option>
           </Select>
-          <Input label="Approximate Monthly Turnover (₹) *" type="number" placeholder="e.g. 500000" value={form.monthlyTurnover} onChange={e => { setField('monthlyTurnover', e.target.value); setStepErrors(se => ({...se, monthlyTurnover: ''})); }} error={stepErrors.monthlyTurnover} />
+          <Input label="Approximate Monthly Turnover (₹) *" type="text" inputMode="numeric" placeholder="e.g. ₹5,00,000"
+            value={form.monthlyTurnover ? `₹${Number(form.monthlyTurnover.replace(/[^\d]/g, '')).toLocaleString('en-IN')}` : ''}
+            onChange={e => {
+              const raw = e.target.value.replace(/[^\d]/g, '');
+              setField('monthlyTurnover', raw);
+              setStepErrors(se => ({...se, monthlyTurnover: ''}));
+            }}
+            error={stepErrors.monthlyTurnover} />
         </>
       )}
     </div>
@@ -946,7 +969,7 @@ export default function CustomerPdPage() {
         ))}
 
         <div className="bg-white border border-gray-100 rounded-xl p-4">
-          <p className="text-xs font-semibold text-[#C8102E] uppercase tracking-wide mb-3">Photos</p>
+          <p className="text-xs font-semibold text-[#C8102E] uppercase tracking-wide mb-3">Photos & Video</p>
           <div className="grid grid-cols-2 gap-3">
             {photoConfig.map(cfg => {
               const photo = photos[cfg.key];
@@ -968,6 +991,27 @@ export default function CustomerPdPage() {
               );
             })}
           </div>
+
+          {/* Video preview in review */}
+          {video && (
+            <div className="mt-3 rounded-lg overflow-hidden border border-blue-100">
+              {video.preview ? (
+                <div className="relative">
+                  <video src={video.preview} className="w-full h-36 bg-black object-cover" controls playsInline />
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1.5">
+                    📹 {isSalaried ? 'Residence Video' : 'Business Video'}
+                    {video.lat && <span className="ml-2 opacity-70">{video.lat.toFixed(4)}, {video.lng.toFixed(4)}</span>}
+                  </div>
+                </div>
+              ) : (
+                <div className="h-16 flex items-center justify-center gap-2 bg-blue-50 text-blue-600 text-xs">
+                  <CheckCircle size={14} />
+                  <span>Video uploaded successfully</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {Object.values(photos).filter(Boolean).length === 0 && (
             <p className="text-xs text-amber-600 mt-2">⚠ No photos uploaded. Photos help verify your address.</p>
           )}
