@@ -90,28 +90,8 @@ function generateDsData(application) {
   const seed     = hash(mobile_no + customer_name);
   const addrSeed = hash(residence_address || '');
 
-  // ── Trust Score ──
-  // Base: salaried 500-750, self-employed 420-680 (slightly wider variance)
   const isSalaried = employment_type === 'salaried';
-  const baseScore  = isSalaried ? 520 : 450;
-  const trustScore = baseScore + (seed % 220);  // 520–739 salaried / 450–669 SE
-
-  // ── Blacklist ──
-  const blackList = false; // stub always clean for demo
-
-  // ── Identity signals ──
-  // Name: capitalise each word of customer_name
-  const nameOnRecord = (customer_name || '')
-    .split(' ')
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(' ');
-
-  // Employment (salaried) — UAN present if trust score high enough
-  const hasUan    = isSalaried && trustScore > 580;
-  const isEmployed = isSalaried;
-
-  // GST (self-employed) — present ~60% of the time for realism
-  const hasGst    = !isSalaried && (seed % 10) < 6;
+  const blackList  = false; // stub always clean for demo
 
   // ── Mobile intelligence ──
   const networkIdx    = seed % NETWORKS.length;
@@ -122,24 +102,60 @@ function generateDsData(application) {
   // Region — derived from address
   const declaredState  = stateFromAddress(residence_address || location || branch || '');
   const networkRegion  = STATE_TELECOM_REGION[declaredState] || declaredState || 'Maharashtra';
-
-  // Region match logic
   const regionMatch    = declaredState !== 'Unknown' &&
     (networkRegion.includes(declaredState) || declaredState.includes(networkRegion.split(' ')[0]));
 
-  // Age of number — derived from seed, 3–14 years
+  // Age of number — 3–14 years from seed
   const firstSeenYear  = 2024 - (3 + (seed % 12));
   const aonYears       = 2024 - firstSeenYear;
-  const aonBucket      = aonYears <= 3   ? 'Less than 3 Years'   :
-                         aonYears <= 5   ? '3 to 5 Years'         :
-                         aonYears <= 8   ? '5 to 8 Years'         :
-                         aonYears <= 11  ? '8 to 11 Years'        : '11+ Years';
+  const aonBucket      = aonYears <= 3   ? 'Less than 3 Years'
+                       : aonYears <= 5   ? '3 to 5 Years'
+                       : aonYears <= 8   ? '5 to 8 Years'
+                       : aonYears <= 11  ? '8 to 11 Years'
+                       : '11+ Years';
+
+  // ── Identity signals ──
+  const nameOnRecord  = (customer_name || '')
+    .split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+
+  const isEmployed    = isSalaried;
+  const hasUan        = isSalaried && (seed % 10) < 8;     // 80% have UAN
+  const hasGst        = !isSalaried && (seed % 10) < 6;    // 60% have GST
 
   // ── Platform presence ──
-  // Higher trust score → more platform presence
-  const hasFlipkart = trustScore > 500;
-  const hasSwiggy   = trustScore > 480;
-  const hasWhatsapp = trustScore > 450;
+  const hasFlipkart   = (seed % 10) < 8;                   // 80% on Flipkart
+  const hasSwiggy     = (seed % 10) < 7;                   // 70% on Swiggy
+  const hasWhatsapp   = (seed % 10) < 9;                   // 90% on WhatsApp
+
+  // ── Trust Score — composite of signals (mirrors DS model logic) ──
+  // Base: 400. Each positive signal adds points. Small noise from seed.
+  let trustScore = 400;
+
+  // Identity (up to 200 pts)
+  if (isEmployed)                                   trustScore += 80;
+  if (hasUan)                                       trustScore += 60;   // strong EPFO signal
+  if (!isSalaried && hasGst)                        trustScore += 70;   // GST = formal business
+  if (!isSalaried && !hasGst)                       trustScore += 20;   // informal SE, weaker
+
+  // Mobile stability (up to 180 pts)
+  if (regionMatch)                                  trustScore += 60;
+  if (aonYears >= 8)                               trustScore += 80;
+  else if (aonYears >= 5)                          trustScore += 55;
+  else if (aonYears >= 3)                          trustScore += 30;
+  else                                              trustScore += 10;
+
+  // Platform presence (up to 120 pts)
+  if (hasFlipkart)                                  trustScore += 40;
+  if (hasSwiggy)                                    trustScore += 40;
+  if (hasWhatsapp)                                  trustScore += 40;
+
+  // Small deterministic noise ±30 to avoid every "all green" profile being identical
+  trustScore += ((seed >> 8) % 31) - 10;
+
+  // Clamp to realistic range
+  trustScore = Math.max(400, Math.min(920, trustScore));
 
   return {
     // Exactly mirrors DS API structure — frontend reads these fields
