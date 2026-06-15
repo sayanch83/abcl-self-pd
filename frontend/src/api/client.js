@@ -53,6 +53,10 @@ export const pdApi = {
     api.post('/pd/upload-photo', formData, {
       headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'multipart/form-data' },
     }),
+  uploadVideo: (sessionToken, formData) =>
+    api.post('/pd/upload-video', formData, {
+      headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'multipart/form-data' },
+    }),
   submit: (sessionToken, data) =>
     api.post('/pd/submit', data, {
       headers: { Authorization: `Bearer ${sessionToken}` },

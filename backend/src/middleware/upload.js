@@ -17,39 +17,14 @@ if (isCloudinaryConfigured) {
 }
 
 function createUploadMiddleware() {
-  if (isCloudinaryConfigured) {
-    const storage = new CloudinaryStorage({
-      cloudinary,
-      params: {
-        folder: 'abcl-self-pd',
-        allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'heic'],
-        transformation: [{ quality: 'auto', fetch_format: 'auto', width: 1920, crop: 'limit' }],
-      },
-    });
-
-    return multer({
-      storage,
-      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-      fileFilter: (req, file, cb) => {
-        if (file.mimetype.startsWith('image/')) {
-          cb(null, true);
-        } else {
-          cb(new Error('Only image files are allowed'), false);
-        }
-      },
-    });
-  }
-
-  // Fallback: store in memory, return base64 URLs for demo
-  logger.warn('Cloudinary not configured — using memory storage (demo mode)');
   return multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 },
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB for video
     fileFilter: (req, file, cb) => {
-      if (file.mimetype.startsWith('image/')) {
+      if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
         cb(null, true);
       } else {
-        cb(new Error('Only image files are allowed'), false);
+        cb(new Error('Only image and video files are allowed'), false);
       }
     },
   });
@@ -59,9 +34,8 @@ function getFileUrl(file) {
   if (file.path) return file.path; // Cloudinary URL
 
   if (file.buffer) {
-    // No Cloudinary — convert buffer to base64 data URL so the actual photo is preserved
-    const base64 = file.buffer.toString('base64');
     const mime = file.mimetype || 'image/jpeg';
+    const base64 = file.buffer.toString('base64');
     return `data:${mime};base64,${base64}`;
   }
 

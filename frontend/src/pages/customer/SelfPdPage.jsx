@@ -31,21 +31,26 @@ function StepIndicator({ steps, current }) {
   );
 }
 
+// ── Mobile detection ──────────────────────────────────────────────────────────
+const isMobileDevice = () =>
+  /Android|iPhone|iPad|iPod|Mobile|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+// ── Photo Uploader ────────────────────────────────────────────────────────────
 function PhotoUploader({ label, type, sessionToken, onUploaded, existing }) {
   const [uploading, setUploading] = useState(false);
-  // Sync with parent state (existing) so re-visiting step shows uploaded photo
-  const [photo, setPhoto] = useState(existing || null);
-  const [error, setError] = useState('');
-  const inputRef = useRef();
+  const [photo, setPhoto]         = useState(existing || null);
+  const [error, setError]         = useState('');
+  const inputRef                  = useRef();
+  const isMobile                  = isMobileDevice();
 
-  // Keep in sync if parent resets
-  useState(() => { if (existing && !photo) setPhoto(existing); }, [existing]);
+  // Keep in sync with parent state when revisiting step
+  useEffect(() => { if (existing) setPhoto(existing); }, [existing]);
 
   const getGeoLocation = () => new Promise((resolve) => {
     if (!navigator.geolocation) { resolve({ lat: null, lng: null }); return; }
     navigator.geolocation.getCurrentPosition(
       pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => resolve({ lat: null, lng: null }),
+      ()  => resolve({ lat: null, lng: null }),
       { timeout: 10000, enableHighAccuracy: true }
     );
   });
@@ -54,10 +59,8 @@ function PhotoUploader({ label, type, sessionToken, onUploaded, existing }) {
     if (!file) return;
     setError('');
     setUploading(true);
-
     try {
       const { lat, lng } = await getGeoLocation();
-
       const formData = new FormData();
       formData.append('photo', file);
       formData.append('photoType', type);
@@ -65,15 +68,11 @@ function PhotoUploader({ label, type, sessionToken, onUploaded, existing }) {
       if (lng) formData.append('lng', lng);
 
       const res = await pdApi.uploadPhoto(sessionToken, formData);
-      const photoData = res.data.data;
-      const previewUrl = URL.createObjectURL(file);
-
-      // Store preview on the photoData object so parent state keeps it across steps
-      const photoWithPreview = { ...photoData, preview: previewUrl };
+      const photoWithPreview = { ...res.data.data, preview: URL.createObjectURL(file) };
       setPhoto(photoWithPreview);
       onUploaded(photoWithPreview);
 
-      if (!lat) toast('Location not captured. Please allow location access for geo-tagging.', { icon: '⚠️' });
+      if (!lat) toast('Location not captured. Please allow location access.', { icon: '⚠️' });
     } catch (err) {
       setError(err.response?.data?.error || 'Upload failed. Please try again.');
     } finally {
@@ -82,12 +81,13 @@ function PhotoUploader({ label, type, sessionToken, onUploaded, existing }) {
   };
 
   return (
-    <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 hover:border-[#C8102E] transition-colors">
+    <div className="border-2 border-dashed border-gray-200 rounded-xl p-3 hover:border-[#C8102E] transition-colors">
+      {/* Camera input — capture="environment" forces rear camera on mobile */}
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
+        {...(isMobile ? { capture: 'environment' } : {})}
         className="hidden"
         onChange={e => handleFile(e.target.files[0])}
       />
@@ -95,20 +95,16 @@ function PhotoUploader({ label, type, sessionToken, onUploaded, existing }) {
       {photo ? (
         <div className="relative">
           <img src={photo.preview || photo.url} alt={label} className="w-full h-40 object-cover rounded-lg" />
-          <div className="absolute top-2 right-2">
-            <button
-              onClick={() => { setPhoto(null); onUploaded(null); }}
-              className="w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600"
-            >
-              <X size={12} />
-            </button>
-          </div>
+          <button
+            onClick={() => { setPhoto(null); onUploaded(null); }}
+            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600"
+          >
+            <X size={12} />
+          </button>
           <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
-            {photo.lat ? (
-              <><MapPin size={10} />{photo.lat.toFixed(4)}, {photo.lng.toFixed(4)}</>
-            ) : (
-              <><AlertCircle size={10} /> Location not captured</>
-            )}
+            {photo.lat
+              ? <><MapPin size={10} />{photo.lat.toFixed(4)}, {photo.lng.toFixed(4)}</>
+              : <><AlertCircle size={10} /> Location not captured</>}
           </div>
         </div>
       ) : (
@@ -116,16 +112,213 @@ function PhotoUploader({ label, type, sessionToken, onUploaded, existing }) {
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className="w-full flex flex-col items-center justify-center gap-2 py-6 text-gray-400 hover:text-[#C8102E] transition-colors"
+          className="w-full flex flex-col items-center justify-center gap-2 py-5 text-gray-400 hover:text-[#C8102E] transition-colors"
         >
           {uploading ? (
             <><Loader2 size={24} className="animate-spin text-[#C8102E]" /><span className="text-xs">Uploading...</span></>
           ) : (
-            <><Camera size={24} /><span className="text-sm font-medium text-gray-600">{label}</span><span className="text-xs">Tap to take photo or choose from gallery</span></>
+            <>
+              <Camera size={24} />
+              <span className="text-sm font-medium text-gray-700">{label}</span>
+              <span className="text-xs text-gray-400">
+                {isMobile ? 'Tap to open camera' : 'Tap to take photo or choose from gallery'}
+              </span>
+            </>
           )}
         </button>
       )}
       {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+    </div>
+  );
+}
+
+// ── Video Recorder ────────────────────────────────────────────────────────────
+function VideoRecorder({ label, type, sessionToken, onUploaded, existing }) {
+  const [state, setState]     = useState('idle'); // idle | recording | uploading | done
+  const [error, setError]     = useState('');
+  const [video, setVideo]     = useState(existing || null);
+  const [duration, setDuration] = useState(0);
+  const mediaRecorderRef      = useRef(null);
+  const chunksRef             = useRef([]);
+  const streamRef             = useRef(null);
+  const timerRef              = useRef(null);
+  const videoPreviewRef       = useRef(null);
+  const isMobile              = isMobileDevice();
+
+  useEffect(() => { if (existing) setVideo(existing); }, [existing]);
+  useEffect(() => () => stopStream(), []);
+
+  const stopStream = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    clearInterval(timerRef.current);
+  };
+
+  const getGeoLocation = () => new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve({ lat: null, lng: null }); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      ()  => resolve({ lat: null, lng: null }),
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  });
+
+  const startRecording = async () => {
+    setError('');
+    chunksRef.current = [];
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true,
+      });
+      streamRef.current = stream;
+
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = stream;
+        videoPreviewRef.current.play();
+      }
+
+      // Pick best supported MIME type
+      const mimeType = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4']
+        .find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm';
+
+      const mr = new MediaRecorder(stream, { mimeType });
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stopStream();
+        const blob = new Blob(chunksRef.current, { type: mimeType });
+        await uploadVideo(blob, mimeType);
+      };
+
+      mediaRecorderRef.current = mr;
+      mr.start(1000); // collect data every second
+      setState('recording');
+      setDuration(0);
+
+      timerRef.current = setInterval(() => setDuration(d => {
+        if (d >= 59) { stopRecording(); return 60; } // 60s max
+        return d + 1;
+      }), 1000);
+    } catch (err) {
+      setError('Camera access denied. Please allow camera and microphone access.');
+    }
+  };
+
+  const stopRecording = () => {
+    clearInterval(timerRef.current);
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    setState('uploading');
+  };
+
+  const uploadVideo = async (blob, mimeType) => {
+    setState('uploading');
+    try {
+      const { lat, lng } = await getGeoLocation();
+      const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+      const formData = new FormData();
+      formData.append('video', blob, `video.${ext}`);
+      formData.append('videoType', type);
+      if (lat) formData.append('lat', lat);
+      if (lng) formData.append('lng', lng);
+
+      const res = await pdApi.uploadVideo(sessionToken, formData);
+      const videoData = { ...res.data.data, preview: URL.createObjectURL(blob) };
+      setVideo(videoData);
+      onUploaded(videoData);
+      setState('done');
+
+      if (!lat) toast('Location not captured for video.', { icon: '⚠️' });
+    } catch (err) {
+      setError(err.response?.data?.error || 'Upload failed. Please try again.');
+      setState('idle');
+    }
+  };
+
+  const reset = () => {
+    setVideo(null);
+    onUploaded(null);
+    setState('idle');
+    setDuration(0);
+    setError('');
+  };
+
+  // Non-mobile: show file picker for video
+  if (!isMobile) {
+    return (
+      <div className="border-2 border-dashed border-blue-200 rounded-xl p-3 bg-blue-50">
+        <div className="flex items-center gap-2 text-blue-600 text-xs">
+          <Camera size={14} />
+          <span>Video recording is available on mobile devices only. Open this link on your phone to record.</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-2 border-dashed border-blue-200 rounded-xl overflow-hidden">
+      {/* Recording preview */}
+      {state === 'recording' && (
+        <div className="relative bg-black">
+          <video ref={videoPreviewRef} className="w-full h-48 object-cover" muted playsInline />
+          <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+            REC {String(Math.floor(duration / 60)).padStart(2,'0')}:{String(duration % 60).padStart(2,'0')}
+          </div>
+          <div className="absolute bottom-2 right-2 text-white text-xs opacity-75">Max 60s</div>
+        </div>
+      )}
+
+      {/* Done — show preview */}
+      {state === 'done' && video?.preview && (
+        <div className="relative">
+          <video src={video.preview} className="w-full h-48 object-cover" controls playsInline />
+          <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1">
+            {video.lat
+              ? <><MapPin size={10} />{video.lat.toFixed(4)}, {video.lng.toFixed(4)}</>
+              : <><AlertCircle size={10} /> Location not captured</>}
+          </div>
+        </div>
+      )}
+
+      {/* Controls */}
+      <div className="p-3">
+        {state === 'idle' && !video && (
+          <button
+            onClick={startRecording}
+            className="w-full flex items-center justify-center gap-2 py-4 text-blue-600 hover:text-blue-700 font-medium text-sm"
+          >
+            <Camera size={22} />
+            <span>{label}</span>
+          </button>
+        )}
+
+        {state === 'recording' && (
+          <button
+            onClick={stopRecording}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 text-white rounded-lg font-semibold text-sm hover:bg-red-700"
+          >
+            <span className="w-3 h-3 rounded bg-white" /> Stop Recording
+          </button>
+        )}
+
+        {state === 'uploading' && (
+          <div className="flex items-center justify-center gap-2 py-3 text-gray-500 text-sm">
+            <Loader2 size={18} className="animate-spin text-blue-500" /> Uploading video...
+          </div>
+        )}
+
+        {state === 'done' && (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-emerald-600 font-medium">✓ Video uploaded</span>
+            <button onClick={reset} className="text-xs text-gray-400 hover:text-red-500">
+              <X size={14} /> Re-record
+            </button>
+          </div>
+        )}
+
+        {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+      </div>
     </div>
   );
 }
@@ -157,8 +350,62 @@ export default function CustomerPdPage() {
     familyMembers: '', dependents: '', existingLoans: '', loanPurpose: '',
     interactionQuality: 'good', customerCooperative: true, additionalNotes: '',
   });
-  const [photos, setPhotos] = useState({});
+  const [photos, setPhotos]     = useState({});
+  const [video, setVideo]       = useState(null);  // outside home video
   const [submitting, setSubmitting] = useState(false);
+  const [stepErrors, setStepErrors] = useState({});
+
+  // ── Per-step field validation ─────────────────────────────────────────────
+  const validateStep = (s) => {
+    const e = {};
+    const sal = appInfo?.employmentType === 'salaried';
+    if (s === 1) {
+      if (!form.residenceType)      e.residenceType      = 'Required';
+      if (!form.residenceOwnership) e.residenceOwnership = 'Required';
+      if (!form.yearsAtResidence)   e.yearsAtResidence   = 'Required';
+      if (!form.localityType)       e.localityType       = 'Required';
+    }
+    if (s === 2) {
+      if (sal) {
+        if (!form.employerName)  e.employerName  = 'Required';
+        if (!form.designation)   e.designation   = 'Required';
+        if (!form.yearsEmployed) e.yearsEmployed = 'Required';
+        if (!form.monthlyIncome) e.monthlyIncome = 'Required';
+      } else {
+        if (!form.businessName)    e.businessName    = 'Required';
+        if (!form.businessType)    e.businessType    = 'Required';
+        if (!form.yearsInBusiness) e.yearsInBusiness = 'Required';
+        if (!form.monthlyTurnover) e.monthlyTurnover = 'Required';
+      }
+    }
+    if (s === 3) {
+      if (!form.familyMembers) e.familyMembers = 'Required';
+      if (!form.dependents)    e.dependents    = 'Required';
+      if (!form.existingLoans) e.existingLoans = 'Required';
+      if (!form.loanPurpose)   e.loanPurpose   = 'Required';
+    }
+    if (s === 4) {
+      // Check all photo slots filled
+      const pCfg = sal ? [
+        { key: 'residence_building' }, { key: 'residence_door' },
+      ] : [
+        { key: 'business_outside' }, { key: 'business_inside' },
+      ];
+      pCfg.forEach(cfg => { if (!photos[cfg.key]) e[cfg.key] = 'Photo required'; });
+    }
+    return e;
+  };
+
+  const handleContinue = () => {
+    const errors = validateStep(step);
+    if (Object.keys(errors).length > 0) {
+      setStepErrors(errors);
+      toast.error('Please complete all required fields');
+      return;
+    }
+    setStepErrors({});
+    setStep(s => s + 1);
+  };
 
   useEffect(() => {
     fetchLinkInfo();
@@ -224,15 +471,18 @@ export default function CustomerPdPage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      // Strip client-only 'preview' blob URLs before sending to backend
       const cleanPhotos = Object.values(photos)
         .filter(Boolean)
         .map(({ preview, ...rest }) => rest);
 
-      await pdApi.submit(sessionToken, {
-        ...form,
-        photos: cleanPhotos,
-      });
+      // Include video in media if recorded
+      const allMedia = cleanPhotos;
+      if (video) {
+        const { preview, ...cleanVideo } = video;
+        allMedia.push(cleanVideo);
+      }
+
+      await pdApi.submit(sessionToken, { ...form, photos: allMedia });
       setStep(6);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Submission failed. Please try again.');
@@ -396,7 +646,6 @@ export default function CustomerPdPage() {
 
   const isSalaried = appInfo?.employmentType === 'salaried';
 
-  // Step 1 — Residence
   const renderStep1 = () => (
     <div className="animate-fadeIn space-y-4">
       <div className="flex items-center gap-3 mb-6">
@@ -407,7 +656,7 @@ export default function CustomerPdPage() {
         <p className="text-xs text-gray-400 mb-1">Address on Record</p>
         <p className="text-sm text-gray-700 font-medium">{appInfo?.residenceAddress}</p>
       </div>
-      <Select label="Type of Residence" value={form.residenceType} onChange={e => setField('residenceType', e.target.value)}>
+      <Select label="Type of Residence *" value={form.residenceType} onChange={e => { setField('residenceType', e.target.value); setStepErrors(se => ({...se, residenceType: ''})); }} error={stepErrors.residenceType}>
         <option value="">Select...</option>
         <option value="apartment">Apartment / Flat</option>
         <option value="independent_house">Independent House / Villa</option>
@@ -415,14 +664,14 @@ export default function CustomerPdPage() {
         <option value="pg">PG / Paying Guest</option>
         <option value="company_accommodation">Company Accommodation</option>
       </Select>
-      <Select label="Ownership Status" value={form.residenceOwnership} onChange={e => setField('residenceOwnership', e.target.value)}>
+      <Select label="Ownership Status *" value={form.residenceOwnership} onChange={e => { setField('residenceOwnership', e.target.value); setStepErrors(se => ({...se, residenceOwnership: ''})); }} error={stepErrors.residenceOwnership}>
         <option value="">Select...</option>
         <option value="self_owned">Self Owned</option>
         <option value="rented">Rented</option>
         <option value="family_owned">Family Owned</option>
         <option value="company_provided">Company Provided</option>
       </Select>
-      <Select label="Years at Current Address" value={form.yearsAtResidence} onChange={e => setField('yearsAtResidence', e.target.value)}>
+      <Select label="Years at Current Address *" value={form.yearsAtResidence} onChange={e => { setField('yearsAtResidence', e.target.value); setStepErrors(se => ({...se, yearsAtResidence: ''})); }} error={stepErrors.yearsAtResidence}>
         <option value="">Select...</option>
         <option value="less_than_1">Less than 1 year</option>
         <option value="1_2">1–2 years</option>
@@ -430,7 +679,7 @@ export default function CustomerPdPage() {
         <option value="5_10">5–10 years</option>
         <option value="more_than_10">More than 10 years</option>
       </Select>
-      <Select label="Locality Type" value={form.localityType} onChange={e => setField('localityType', e.target.value)}>
+      <Select label="Locality Type *" value={form.localityType} onChange={e => { setField('localityType', e.target.value); setStepErrors(se => ({...se, localityType: ''})); }} error={stepErrors.localityType}>
         <option value="">Select...</option>
         <option value="urban">Urban / City</option>
         <option value="semi_urban">Semi-Urban</option>
@@ -456,9 +705,9 @@ export default function CustomerPdPage() {
       </div>
       {isSalaried ? (
         <>
-          <Input label="Employer / Company Name" placeholder="e.g. Infosys Limited" value={form.employerName} onChange={e => setField('employerName', e.target.value)} />
-          <Input label="Designation / Role" placeholder="e.g. Senior Software Engineer" value={form.designation} onChange={e => setField('designation', e.target.value)} />
-          <Select label="Years in Current Employment" value={form.yearsEmployed} onChange={e => setField('yearsEmployed', e.target.value)}>
+          <Input label="Employer / Company Name *" placeholder="e.g. Infosys Limited" value={form.employerName} onChange={e => { setField('employerName', e.target.value); setStepErrors(se => ({...se, employerName: ''})); }} error={stepErrors.employerName} />
+          <Input label="Designation / Role *" placeholder="e.g. Senior Software Engineer" value={form.designation} onChange={e => { setField('designation', e.target.value); setStepErrors(se => ({...se, designation: ''})); }} error={stepErrors.designation} />
+          <Select label="Years in Current Employment *" value={form.yearsEmployed} onChange={e => { setField('yearsEmployed', e.target.value); setStepErrors(se => ({...se, yearsEmployed: ''})); }} error={stepErrors.yearsEmployed}>
             <option value="">Select...</option>
             <option value="less_than_1">Less than 1 year</option>
             <option value="1_2">1–2 years</option>
@@ -466,12 +715,12 @@ export default function CustomerPdPage() {
             <option value="5_10">5–10 years</option>
             <option value="more_than_10">More than 10 years</option>
           </Select>
-          <Input label="Monthly Net Income (₹)" type="number" placeholder="e.g. 75000" value={form.monthlyIncome} onChange={e => setField('monthlyIncome', e.target.value)} />
+          <Input label="Monthly Net Income (₹) *" type="number" placeholder="e.g. 75000" value={form.monthlyIncome} onChange={e => { setField('monthlyIncome', e.target.value); setStepErrors(se => ({...se, monthlyIncome: ''})); }} error={stepErrors.monthlyIncome} />
         </>
       ) : (
         <>
-          <Input label="Business / Firm Name" placeholder="e.g. Agarwal Medical Store" value={form.businessName} onChange={e => setField('businessName', e.target.value)} />
-          <Select label="Nature of Business" value={form.businessType} onChange={e => setField('businessType', e.target.value)}>
+          <Input label="Business / Firm Name *" placeholder="e.g. Agarwal Medical Store" value={form.businessName} onChange={e => { setField('businessName', e.target.value); setStepErrors(se => ({...se, businessName: ''})); }} error={stepErrors.businessName} />
+          <Select label="Nature of Business *" value={form.businessType} onChange={e => { setField('businessType', e.target.value); setStepErrors(se => ({...se, businessType: ''})); }} error={stepErrors.businessType}>
             <option value="">Select...</option>
             <option value="retail_trading">Retail / Trading</option>
             <option value="manufacturing">Manufacturing</option>
@@ -480,7 +729,7 @@ export default function CustomerPdPage() {
             <option value="agriculture">Agriculture / Farming</option>
             <option value="construction">Construction / Real Estate</option>
           </Select>
-          <Select label="Years in Business" value={form.yearsInBusiness} onChange={e => setField('yearsInBusiness', e.target.value)}>
+          <Select label="Years in Business *" value={form.yearsInBusiness} onChange={e => { setField('yearsInBusiness', e.target.value); setStepErrors(se => ({...se, yearsInBusiness: ''})); }} error={stepErrors.yearsInBusiness}>
             <option value="">Select...</option>
             <option value="less_than_1">Less than 1 year</option>
             <option value="1_3">1–3 years</option>
@@ -488,7 +737,7 @@ export default function CustomerPdPage() {
             <option value="5_10">5–10 years</option>
             <option value="more_than_10">More than 10 years</option>
           </Select>
-          <Input label="Approximate Monthly Turnover (₹)" type="number" placeholder="e.g. 500000" value={form.monthlyTurnover} onChange={e => setField('monthlyTurnover', e.target.value)} />
+          <Input label="Approximate Monthly Turnover (₹) *" type="number" placeholder="e.g. 500000" value={form.monthlyTurnover} onChange={e => { setField('monthlyTurnover', e.target.value); setStepErrors(se => ({...se, monthlyTurnover: ''})); }} error={stepErrors.monthlyTurnover} />
         </>
       )}
     </div>
@@ -502,10 +751,10 @@ export default function CustomerPdPage() {
         <div><h2 className="font-bold text-gray-900">Personal Details</h2><p className="text-xs text-gray-400">Family & financial information</p></div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Input label="Total Family Members" type="number" min={1} max={20} placeholder="e.g. 4" value={form.familyMembers} onChange={e => setField('familyMembers', e.target.value)} />
-        <Input label="Number of Dependents" type="number" min={0} max={20} placeholder="e.g. 2" value={form.dependents} onChange={e => setField('dependents', e.target.value)} />
+        <Input label="Total Family Members *" type="number" min={1} max={20} placeholder="e.g. 4" value={form.familyMembers} onChange={e => { setField('familyMembers', e.target.value); setStepErrors(se => ({...se, familyMembers: ''})); }} error={stepErrors.familyMembers} />
+        <Input label="Number of Dependents *" type="number" min={0} max={20} placeholder="e.g. 2" value={form.dependents} onChange={e => { setField('dependents', e.target.value); setStepErrors(se => ({...se, dependents: ''})); }} error={stepErrors.dependents} />
       </div>
-      <Select label="Existing Loan Obligations" value={form.existingLoans} onChange={e => setField('existingLoans', e.target.value)}>
+      <Select label="Existing Loan Obligations *" value={form.existingLoans} onChange={e => { setField('existingLoans', e.target.value); setStepErrors(se => ({...se, existingLoans: ''})); }} error={stepErrors.existingLoans}>
         <option value="">Select...</option>
         <option value="none">None</option>
         <option value="home_loan">Home Loan</option>
@@ -515,15 +764,16 @@ export default function CustomerPdPage() {
         <option value="multiple">Multiple Loans</option>
       </Select>
       <Textarea
-        label="Purpose of This Loan"
+        label="Purpose of This Loan *"
         placeholder="Briefly describe how you plan to use this loan..."
         value={form.loanPurpose}
-        onChange={e => setField('loanPurpose', e.target.value)}
+        onChange={e => { setField('loanPurpose', e.target.value); setStepErrors(se => ({...se, loanPurpose: ''})); }}
+        error={stepErrors.loanPurpose}
         rows={3}
       />
       <Textarea
         label="Additional Remarks (Optional)"
-        placeholder="Any other information you'd like to share with us..."
+        placeholder="Any other information you'd like to share..."
         value={form.additionalNotes}
         onChange={e => setField('additionalNotes', e.target.value)}
         rows={2}
@@ -571,50 +821,75 @@ export default function CustomerPdPage() {
   const renderStep4 = () => (
     <div className="animate-fadeIn space-y-4">
       <div className="flex items-center gap-3 mb-2">
-        <div className="w-10 h-10 rounded-xl bg-[#F5E6E9] flex items-center justify-center">
-          <Camera size={18} className="text-[#C8102E]" />
-        </div>
+        <div className="w-10 h-10 rounded-xl bg-[#F5E6E9] flex items-center justify-center"><Camera size={18} className="text-[#C8102E]" /></div>
         <div>
-          <h2 className="font-bold text-gray-900">Photographs</h2>
+          <h2 className="font-bold text-gray-900">Photographs & Video</h2>
           <p className="text-xs text-gray-400">
-            {isSalaried
-              ? 'Upload 2 photos of your residence'
-              : 'Upload 2 photos of your business premises'}
+            {isSalaried ? '2 photos required · 1 video optional' : '2 photos required · 1 video optional'}
           </p>
         </div>
       </div>
 
       <Alert type="info" className="text-xs">
-        📍 Allow location access when prompted — photos will be geo-tagged automatically to verify your address.
+        📍 Allow location access when prompted — media will be geo-tagged automatically.
+        {isMobileDevice() ? ' Camera will open directly.' : ' On desktop, gallery upload is available.'}
       </Alert>
 
-      <div className="space-y-5">
+      {/* Photos */}
+      <div className="space-y-4">
         {photoConfig.map((cfg, idx) => {
           const Icon = cfg.icon;
+          const hasError = stepErrors[cfg.key];
           return (
-            <div key={cfg.key} className="bg-white border border-gray-100 rounded-xl p-4">
-              {/* Header */}
+            <div key={cfg.key} className={`bg-white border rounded-xl p-4 ${hasError ? 'border-red-300' : 'border-gray-100'}`}>
               <div className="flex items-start gap-3 mb-3">
                 <div className="w-7 h-7 rounded-lg bg-[#F5E6E9] flex items-center justify-center flex-shrink-0 mt-0.5">
                   <span className="text-xs font-bold text-[#C8102E]">{idx + 1}</span>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-800">{cfg.label}</p>
+                  <p className="text-sm font-semibold text-gray-800">{cfg.label} <span className="text-red-500">*</span></p>
                   <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{cfg.instruction}</p>
                   <p className="text-xs text-gray-400 mt-0.5 italic">{cfg.example}</p>
                 </div>
               </div>
-
               <PhotoUploader
                 label={`Take Photo ${idx + 1}`}
                 type={cfg.type}
                 sessionToken={sessionToken}
-                onUploaded={photo => setPhotos(p => ({ ...p, [cfg.key]: photo }))}
+                onUploaded={photo => { setPhotos(p => ({ ...p, [cfg.key]: photo })); setStepErrors(se => ({...se, [cfg.key]: ''})); }}
                 existing={photos[cfg.key]}
               />
+              {hasError && <p className="text-xs text-red-500 mt-1.5">⚠ {hasError}</p>}
             </div>
           );
         })}
+      </div>
+
+      {/* Video recorder — outside home/business */}
+      <div className="bg-white border border-blue-100 rounded-xl p-4">
+        <div className="flex items-start gap-3 mb-3">
+          <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Camera size={14} className="text-blue-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-800">
+              {isSalaried ? 'Video — Outside Residence' : 'Video — Outside Business Premises'}
+              <span className="ml-2 text-xs font-normal text-gray-400">(Optional)</span>
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+              Record a short video (up to 60 seconds) walking around the outside of your{' '}
+              {isSalaried ? 'home / building' : 'business premises'}.
+              This helps verify the location visually.
+            </p>
+          </div>
+        </div>
+        <VideoRecorder
+          label={isSalaried ? 'Record Outside Residence' : 'Record Outside Business'}
+          type={isSalaried ? 'residence_video' : 'business_video'}
+          sessionToken={sessionToken}
+          onUploaded={v => setVideo(v)}
+          existing={video}
+        />
       </div>
     </div>
   );
@@ -719,7 +994,7 @@ export default function CustomerPdPage() {
           </Button>
         )}
         {step < 5 ? (
-          <Button className="flex-1" onClick={() => setStep(s => s + 1)}>
+          <Button className="flex-1" onClick={handleContinue}>
             Continue
             <ChevronRight size={16} />
           </Button>

@@ -233,4 +233,38 @@ async function submitPd(req, res) {
   }
 }
 
-module.exports = { getLinkInfo, requestOtp, validateOtp, uploadPhoto, submitPd };
+async function uploadVideo(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No video uploaded' });
+    }
+
+    const { videoType, lat, lng } = req.body;
+
+    const VALID_VIDEO_TYPES = ['residence_video', 'business_video', 'office_video'];
+    if (!videoType || !VALID_VIDEO_TYPES.includes(videoType)) {
+      return res.status(400).json({ success: false, error: 'Invalid video type' });
+    }
+
+    const url = getFileUrl(req.file);
+
+    return res.json({
+      success: true,
+      data: {
+        url,
+        lat:          parseFloat(lat) || null,
+        lng:          parseFloat(lng) || null,
+        type:         videoType,
+        mediaType:    'video',
+        timestamp:    new Date().toISOString(),
+        originalName: req.file.originalname,
+        size:         req.file.size,
+      }
+    });
+  } catch (error) {
+    logger.error(`Upload video error: ${error.message}`);
+    return res.status(500).json({ success: false, error: 'Failed to upload video' });
+  }
+}
+
+module.exports = { getLinkInfo, requestOtp, validateOtp, uploadPhoto, uploadVideo, submitPd };
