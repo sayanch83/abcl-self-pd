@@ -138,7 +138,7 @@ function GeoCard({ analysis }) {
 }
 
 // ── Digital Footprint Intelligence Section (DS Authenticate) ─────────────────
-function DigitalFootprintSection({ applicationId, employmentType }) {
+function DigitalFootprintSection({ applicationId, employmentType, defaultOpen = false }) {
   const [ds, setDs] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -152,7 +152,7 @@ function DigitalFootprintSection({ applicationId, employmentType }) {
   const isSalaried = employmentType === 'salaried';
 
   return (
-    <Section title="Digital Footprint Intelligence" icon={ShoppingBag} defaultOpen>
+    <Section title="Digital Footprint Intelligence" icon={ShoppingBag} defaultOpen={defaultOpen}>
       {loading ? (
         <div className="flex items-center gap-2 py-3 text-gray-400 text-xs">
           <Spinner size={14} /> Fetching intelligence data...
@@ -652,6 +652,7 @@ export default function ApplicationDetail() {
           <DigitalFootprintSection
             applicationId={data.id}
             employmentType={data.employment_type}
+            defaultOpen={isCompleted}
           />
 
           {/* PD Outcome — only show after completion */}
