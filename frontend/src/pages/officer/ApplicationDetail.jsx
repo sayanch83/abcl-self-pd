@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ChevronDown, ChevronUp, MapPin, CheckCircle, XCircle,
-  Home, Building2, Users, FileText, Image, RefreshCw, Send
+  Home, Building2, Users, FileText, Image, RefreshCw, Send, ShoppingBag
 } from 'lucide-react';
 import { applicationApi } from '../../api/client';
 import OfficerLayout from '../../components/layout/OfficerLayout';
@@ -10,6 +10,7 @@ import { Badge, StatusBadge, Spinner, Alert, Textarea } from '../../components/c
 import PdLinkModal from '../../components/common/PdLinkModal';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
+import { generateEcommerceData } from '../../utils/ecommerceAddressStub';
 
 // ── Collapsible Section (matches screenshot style) ────────────────────────────
 function Section({ title, icon: Icon, children, defaultOpen = false, badge }) {
@@ -104,6 +105,98 @@ function GeoCard({ analysis }) {
         </p>
       </div>
     </div>
+  );
+}
+
+// ── Ecommerce Address Validation Section ─────────────────────────────────────
+function EcommerceSection({ residenceAddress, appId }) {
+  const data = generateEcommerceData(residenceAddress);
+
+  const stabilityColor =
+    data.address_stability_score >= 85 ? 'text-emerald-600' :
+    data.address_stability_score >= 70 ? 'text-amber-600' : 'text-red-500';
+
+  const stabilityBg =
+    data.address_stability_score >= 85 ? 'bg-emerald-50 border-emerald-200' :
+    data.address_stability_score >= 70 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
+
+  const matchBg    = data.application_address_match ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200';
+  const matchColor = data.application_address_match ? 'text-emerald-700' : 'text-amber-700';
+  const matchLabel = data.application_address_match ? '✓ Match' : '~ Partial';
+  const matchDesc  = data.application_address_match
+    ? 'Address on application is consistent with known delivery locations'
+    : 'Address on application partially overlaps with known delivery locations';
+
+  return (
+    <Section title="Ecommerce Address Validation" icon={ShoppingBag} defaultOpen>
+      {/* Source label */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">Source: Digital footprint intelligence</span>
+        </div>
+        <span className="text-xs text-gray-400 font-mono">{data.mobile}</span>
+      </div>
+
+      {/* Top 2 addresses */}
+      <div className="space-y-2 mb-4">
+        {data.known_addresses.map(addr => {
+          const confColor =
+            addr.confidence >= 85 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' :
+            addr.confidence >= 70 ? 'text-amber-600 bg-amber-50 border-amber-200' :
+                                    'text-red-500 bg-red-50 border-red-200';
+
+          return (
+            <div key={addr.rank} className="flex items-start gap-3 p-3 bg-gray-50 border border-gray-100 rounded-xl">
+              {/* Rank badge */}
+              <div className="w-5 h-5 rounded-full bg-[#C8102E] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                {addr.rank}
+              </div>
+
+              {/* Address */}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-gray-800 leading-relaxed">{addr.address}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5 uppercase tracking-wide">{addr.type}</p>
+              </div>
+
+              {/* Confidence pill */}
+              <div className={`flex-shrink-0 px-2 py-1 rounded-lg border text-xs font-bold ${confColor}`}>
+                {addr.confidence}%
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Stability + Match — compact 2-column row */}
+      <div className="grid grid-cols-2 gap-2">
+        {/* Address stability */}
+        <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border ${stabilityBg}`}>
+          <div>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold">Stability Score</p>
+            <p className="text-xs text-gray-500 mt-0.5">Address consistency over time</p>
+          </div>
+          <p className={`text-xl font-bold ml-3 flex-shrink-0 ${stabilityColor}`}>
+            {data.address_stability_score}
+          </p>
+        </div>
+
+        {/* Application address match */}
+        <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border ${matchBg}`}>
+          <div className="min-w-0">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold">App Address</p>
+            <p className={`text-xs mt-0.5 leading-tight ${matchColor}`}>{matchDesc}</p>
+          </div>
+          <span className={`ml-3 flex-shrink-0 text-xs font-bold px-2 py-1 rounded-lg border ${matchBg} ${matchColor}`}>
+            {matchLabel}
+          </span>
+        </div>
+      </div>
+
+      {/* Disclaimer */}
+      <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
+        * Indicative data derived from digital footprint intelligence. Confidence scores reflect address frequency and recency from e-commerce interactions.
+      </p>
+    </Section>
   );
 }
 
@@ -362,8 +455,8 @@ export default function ApplicationDetail() {
             </FieldGrid>
           </Section>
 
-          {/* Geolocation Images */}
-          <Section title="Geolocation Images" icon={MapPin} defaultOpen={isCompleted}
+          {/* Uploaded Images — renamed, merged (was Geolocation Images + Uploaded Photographs) */}
+          <Section title="Uploaded Images" icon={Image} defaultOpen={isCompleted}
             badge={geoAnalysis?.length > 0 ? `${geoAnalysis.length} photos` : undefined}>
             {!isCompleted ? (
               <p className="text-sm text-gray-400 py-2">Photos will appear after customer submits the form.</p>
@@ -376,41 +469,8 @@ export default function ApplicationDetail() {
             )}
           </Section>
 
-          {/* Uploaded Photographs */}
-          <Section title="Uploaded Photographs" icon={Image} defaultOpen={isCompleted}
-            badge={s?.photos?.length > 0 ? `${s.photos.length} photos` : undefined}>
-            {!isCompleted ? (
-              <p className="text-sm text-gray-400 py-2">Photos will appear after customer submits the form.</p>
-            ) : s?.photos?.length > 0 ? (
-              <div className="grid grid-cols-3 gap-3">
-                {s.photos.map((photo, i) => (
-                  <div key={i} className="relative group rounded-xl overflow-hidden border border-gray-100">
-                    <img
-                      src={photo.url}
-                      alt={photo.type}
-                      className="w-full h-36 object-cover"
-                      onError={e => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect fill="%23f3f4f6" width="200" height="150"/><text fill="%239ca3af" x="50%" y="50%" text-anchor="middle" dy=".3em">No preview</text></svg>'; }}
-                    />
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-2 py-1">
-                      {{
-                        residence: 'Residence', residence_building: 'Residence — Building',
-                        residence_door: 'Residence — Door', office: 'Office',
-                        business: 'Business', business_outside: 'Business — Outside',
-                        business_inside: 'Business — Inside',
-                      }[photo.type] || photo.type}
-                    </div>
-                    {photo.lat && (
-                      <div className="absolute top-1.5 right-1.5 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
-                        <MapPin size={8} />{photo.lat.toFixed(3)}, {photo.lng.toFixed(3)}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400 py-2">No photos uploaded.</p>
-            )}
-          </Section>
+          {/* Ecommerce Address Validation */}
+          <EcommerceSection residenceAddress={data.residence_address} appId={data.app_id} />
 
           {/* PD Outcome — only show after completion */}
           {isCompleted && (
