@@ -274,7 +274,7 @@ async function generatePdReport(application, submission, geoAnalysis) {
 
                 // Street View note
                 doc.fillColor(GRAY).font('Helvetica').fontSize(6.5)
-                   .text(`Street View: maps.google.com/?q=${photo.lat.toFixed(5)},${photo.lng.toFixed(5)}&layer=c`, px + 6, capY + 54, { width: imgW - 12 });
+                   .text(`Street View: google.com/maps/@?api=1&map_action=pano&viewpoint=${photo.lat.toFixed(5)},${photo.lng.toFixed(5)}`, px + 6, capY + 54, { width: imgW - 12 });
               }
             } else {
               doc.fillColor(GRAY).font('Helvetica').fontSize(7)

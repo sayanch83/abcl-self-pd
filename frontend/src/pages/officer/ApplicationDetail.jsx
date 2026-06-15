@@ -63,7 +63,7 @@ function GeoCard({ analysis }) {
   const c = colors[risk] || colors.high;
 
   const streetViewUrl = analysis.photoCoords?.lat
-    ? `https://maps.google.com/maps?q=${analysis.photoCoords.lat},${analysis.photoCoords.lng}&layer=c&z=17`
+    ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${analysis.photoCoords.lat},${analysis.photoCoords.lng}`
     : null;
 
   const capturedAt = analysis.photoCapturedAt
