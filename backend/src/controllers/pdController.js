@@ -114,7 +114,12 @@ async function uploadPhoto(req, res) {
 
     const { photoType, lat, lng } = req.body;
 
-    if (!photoType || !['residence', 'office', 'business'].includes(photoType)) {
+    const VALID_PHOTO_TYPES = [
+      'residence', 'residence_building', 'residence_door',
+      'office', 'business', 'business_outside', 'business_inside',
+    ];
+
+    if (!photoType || !VALID_PHOTO_TYPES.includes(photoType)) {
       return res.status(400).json({ success: false, error: 'Invalid photo type' });
     }
 
