@@ -189,7 +189,10 @@ async function generatePdReport(application, submission, geoAnalysis) {
       y += 8;
 
       // ── PAGE 2: Photos ────────────────────────────────────────────────────
-      if (submission?.photos?.length > 0) {
+      // Filter to photos only (exclude video entries)
+      const photoEntries = (submission?.photos || []).filter(p => p.mediaType !== 'video');
+
+      if (photoEntries.length > 0) {
         doc.addPage({ size: 'A4', margin: 0 });
 
         // Red header - page 2
@@ -205,12 +208,14 @@ async function generatePdReport(application, submission, geoAnalysis) {
         };
 
         let py = 56;
-        const imgW = (CW - 12) / 2;  // 2 per row
-        const imgH = 140;
+        const imgW   = (CW - 12) / 2;   // 2 columns
+        const imgH   = 160;              // photo height
+        const capH   = 72;              // caption area height
+        const rowH   = imgH + capH + 12; // total row height with gap
 
         // Pre-fetch all image buffers
         const photosWithBuffers = await Promise.all(
-          submission.photos.map(async (photo) => ({
+          photoEntries.map(async (photo) => ({
             ...photo,
             buffer: await fetchImageBuffer(photo.url),
           }))
@@ -219,8 +224,8 @@ async function generatePdReport(application, submission, geoAnalysis) {
         for (let i = 0; i < photosWithBuffers.length; i += 2) {
           const rowPhotos = photosWithBuffers.slice(i, i + 2);
 
-          // Check if we need a new page
-          if (py + imgH + 80 > 800) {
+          // New page if needed
+          if (py + rowH > 800) {
             doc.addPage({ size: 'A4', margin: 0 });
             doc.rect(0, 0, W, 40).fill(RED);
             doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(11).text('Photographs (continued)', M, 13);
@@ -230,59 +235,71 @@ async function generatePdReport(application, submission, geoAnalysis) {
           rowPhotos.forEach((photo, j) => {
             const px = M + j * (imgW + 12);
 
-            // Image box
-            doc.rect(px, py, imgW, imgH).fill('#F9FAFB').stroke('#E5E7EB');
+            // ── Image area — clipped rect so nothing bleeds into caption ──
+            doc.save();
+            doc.rect(px, py, imgW, imgH).clip();
+            doc.rect(px, py, imgW, imgH).fill('#F9FAFB');
 
             if (photo.buffer) {
               try {
-                doc.image(photo.buffer, px, py, { width: imgW, height: imgH, cover: [imgW, imgH] });
+                // Use 'fit' to scale within bounds without overflow
+                doc.image(photo.buffer, px, py, { fit: [imgW, imgH], align: 'center', valign: 'center' });
               } catch {
-                // Image failed to render — show placeholder
                 doc.fillColor(GRAY).font('Helvetica').fontSize(8)
-                   .text('Image unavailable', px + imgW / 2 - 30, py + imgH / 2);
+                   .text('Image unavailable', px + imgW / 2 - 30, py + imgH / 2 - 5);
               }
             } else {
               doc.fillColor(GRAY).font('Helvetica').fontSize(8)
-                 .text('Image unavailable', px + imgW / 2 - 30, py + imgH / 2);
+                 .text('Image unavailable', px + imgW / 2 - 30, py + imgH / 2 - 5);
             }
+            doc.restore();
 
-            // Caption bar below image
+            // ── Border around image ──
+            doc.rect(px, py, imgW, imgH).stroke('#E5E7EB');
+
+            // ── Caption block — strictly below image ──
             const capY = py + imgH;
-            doc.rect(px, capY, imgW, 66).fill(LGRAY).stroke('#E5E7EB');
+            doc.rect(px, capY, imgW, capH).fill(LGRAY).stroke('#E5E7EB');
+
+            let ty = capY + 5;
 
             // Photo type label
             doc.fillColor(RED).font('Helvetica-Bold').fontSize(8)
-               .text(TYPE_LABELS[photo.type] || cap(photo.type), px + 6, capY + 5, { width: imgW - 12 });
+               .text(TYPE_LABELS[photo.type] || cap(photo.type), px + 6, ty, { width: imgW - 12 });
+            ty += 13;
 
             // Timestamp
             if (photo.timestamp) {
               doc.fillColor(GRAY).font('Helvetica').fontSize(7)
-                 .text(`Captured: ${formatDate(photo.timestamp)}`, px + 6, capY + 18, { width: imgW - 12 });
+                 .text(`Captured: ${formatDate(photo.timestamp)}`, px + 6, ty, { width: imgW - 12 });
+              ty += 11;
             }
 
-            // GPS coordinates
+            // GPS
             if (photo.lat && photo.lng) {
               doc.fillColor(DARK).font('Helvetica').fontSize(7)
-                 .text(`GPS: ${photo.lat.toFixed(5)}, ${photo.lng.toFixed(5)}`, px + 6, capY + 30, { width: imgW - 12 });
+                 .text(`GPS: ${photo.lat.toFixed(5)}, ${photo.lng.toFixed(5)}`, px + 6, ty, { width: imgW - 12 });
+              ty += 11;
 
-              // Geo analysis for this photo
+              // Distance
               const geo = geoAnalysis?.find(g => g.photoType === photo.type);
               if (geo) {
                 const distColor = geo.riskLevel === 'low' ? GREEN : geo.riskLevel === 'medium' ? '#D97706' : RED;
                 doc.fillColor(distColor).font('Helvetica-Bold').fontSize(7)
-                   .text(`${geo.distanceLabel} — ${geo.distanceKm} km from registered address`, px + 6, capY + 42, { width: imgW - 12 });
-
-                // Street View note
-                doc.fillColor(GRAY).font('Helvetica').fontSize(6.5)
-                   .text(`Street View: google.com/maps/@?api=1&map_action=pano&viewpoint=${photo.lat.toFixed(5)},${photo.lng.toFixed(5)}`, px + 6, capY + 54, { width: imgW - 12 });
+                   .text(`${geo.distanceLabel} — ${geo.distanceKm} km from address`, px + 6, ty, { width: imgW - 12 });
+                ty += 11;
               }
+
+              // Street View URL — shortened
+              doc.fillColor('#2563EB').font('Helvetica').fontSize(6.5)
+                 .text(`maps.google.com/@?api=1&map_action=pano&viewpoint=${photo.lat.toFixed(4)},${photo.lng.toFixed(4)}`, px + 6, ty, { width: imgW - 12 });
             } else {
               doc.fillColor(GRAY).font('Helvetica').fontSize(7)
-                 .text('Location not captured', px + 6, capY + 30, { width: imgW - 12 });
+                 .text('Location not captured', px + 6, ty, { width: imgW - 12 });
             }
           });
 
-          py += imgH + 66 + 14; // image + caption + gap
+          py += rowH;
         }
       }
 
