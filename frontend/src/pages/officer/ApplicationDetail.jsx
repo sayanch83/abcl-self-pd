@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';import { useParams, useNavigate } from 'react-router-dom';
 import {
   ChevronDown, ChevronUp, MapPin, CheckCircle, XCircle,
-  Home, Building2, Users, FileText, Image, RefreshCw, Send, ShoppingBag
+  Home, Building2, Users, FileText, Image, RefreshCw, Send,
+  ShoppingBag, Download, ExternalLink
 } from 'lucide-react';
 import { applicationApi } from '../../api/client';
 import OfficerLayout from '../../components/layout/OfficerLayout';
@@ -50,6 +51,7 @@ function FieldGrid({ children }) {
   return <div className="space-y-0">{children}</div>;
 }
 
+// ── Ecommerce Address Validation Section ─────────────────────────────────────
 // ── Geo Card ──────────────────────────────────────────────────────────────────
 function GeoCard({ analysis }) {
   const risk = analysis.riskLevel;
@@ -59,6 +61,17 @@ function GeoCard({ analysis }) {
     high:   { border: 'border-red-200 bg-red-50',         text: 'text-red-700',     badge: 'bg-red-100 text-red-700'        },
   };
   const c = colors[risk] || colors.high;
+
+  const streetViewUrl = analysis.photoCoords?.lat
+    ? `https://maps.google.com/maps?q=${analysis.photoCoords.lat},${analysis.photoCoords.lng}&layer=c&z=17`
+    : null;
+
+  const capturedAt = analysis.photoCapturedAt
+    ? new Date(analysis.photoCapturedAt).toLocaleString('en-IN', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
+      })
+    : null;
 
   return (
     <div className={`border rounded-xl p-4 ${c.border}`}>
@@ -82,13 +95,33 @@ function GeoCard({ analysis }) {
       )}
 
       <div className="space-y-2 text-xs">
+        {/* Timestamp */}
+        {capturedAt && (
+          <div className="flex items-center gap-2 text-gray-500">
+            <span className="text-gray-400">📅</span>
+            <span>{capturedAt}</span>
+          </div>
+        )}
+
         <div className="flex items-start gap-2">
           <MapPin size={11} className="text-gray-400 mt-0.5 flex-shrink-0" />
           <div>
             <p className="text-gray-500">Photo captured at</p>
-            <p className="font-medium text-gray-700">
-              {analysis.photoCoords?.lat?.toFixed(5)}, {analysis.photoCoords?.lng?.toFixed(5)}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-gray-700">
+                {analysis.photoCoords?.lat?.toFixed(5)}, {analysis.photoCoords?.lng?.toFixed(5)}
+              </p>
+              {streetViewUrl && (
+                <a
+                  href={streetViewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded ${c.badge} hover:opacity-80 transition-opacity`}
+                >
+                  <ExternalLink size={9} /> Street View
+                </a>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-start gap-2">
@@ -302,14 +335,15 @@ export default function ApplicationDetail() {
   };
 
   const handleSaveOutcome = async () => {
-    if (!outcome) { toast.error('Please select an outcome'); return; }
+    if (!outcome) { toast.error('Please select Positive or Negative'); return; }
+    if (!remarks.trim()) { toast.error('Remarks are mandatory before saving decision'); return; }
     setSavingOutcome(true);
     try {
       await applicationApi.updateOutcome(id, { outcome, remarks });
-      toast.success('PD outcome saved');
+      toast.success('PD decision saved');
       fetchData();
     } catch {
-      toast.error('Failed to save outcome');
+      toast.error('Failed to save decision');
     } finally {
       setSavingOutcome(false);
     }
@@ -531,7 +565,7 @@ export default function ApplicationDetail() {
 
           {/* PD Outcome — only show after completion */}
           {isCompleted && (
-            <Section title="PD Outcome" icon={FileText} defaultOpen>
+            <Section title="PD Decision" icon={FileText} defaultOpen>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <button
@@ -566,24 +600,42 @@ export default function ApplicationDetail() {
                 </div>
 
                 <div>
-                  <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1.5">Remarks</p>
+                  <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1.5">
+                    Remarks <span className="text-[#C8102E]">*</span>
+                    <span className="text-gray-400 font-normal normal-case ml-1">(mandatory)</span>
+                  </p>
                   <textarea
                     value={remarks}
                     onChange={e => setRemarks(e.target.value)}
                     placeholder="Enter your observations and remarks about this PD..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 resize-none
-                      focus:outline-none focus:ring-2 focus:ring-[#C8102E] focus:border-transparent"
+                    className={`w-full px-3 py-2 border rounded-lg text-sm text-gray-800 resize-none
+                      focus:outline-none focus:ring-2 focus:ring-[#C8102E] focus:border-transparent
+                      ${!remarks.trim() && outcome ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
                   />
+                  {!remarks.trim() && outcome && (
+                    <p className="text-xs text-red-500 mt-1">Remarks are required before saving decision</p>
+                  )}
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between">
+                  {/* Download Report */}
+                  <a
+                    href={`/api/applications/${data.id}/report`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                  >
+                    <Download size={14} />
+                    Download PD Report (PDF)
+                  </a>
+
                   <button
                     onClick={handleSaveOutcome}
                     disabled={savingOutcome}
                     className="px-5 py-2 bg-[#C8102E] text-white text-sm font-medium rounded-lg hover:bg-[#A00D24] disabled:opacity-50 transition-colors"
                   >
-                    {savingOutcome ? 'Saving...' : 'Save Outcome'}
+                    {savingOutcome ? 'Saving...' : 'Save Decision'}
                   </button>
                 </div>
               </div>
