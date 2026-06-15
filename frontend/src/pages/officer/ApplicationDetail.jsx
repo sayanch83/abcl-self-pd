@@ -65,10 +65,10 @@ function GeoCard({ analysis }) {
     <div className={`border rounded-xl p-4 ${c.border}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          {analysis.photoType === 'residence'
+          {analysis.photoType === 'residence' || analysis.photoType === 'residence_building' || analysis.photoType === 'residence_door'
             ? <Home size={14} className={c.text} />
             : <Building2 size={14} className={c.text} />}
-          <span className={`text-sm font-semibold capitalize ${c.text}`}>{analysis.photoType} Photo</span>
+          <span className={`text-sm font-semibold ${c.text}`}>{analysis.photoTypeLabel || analysis.photoType}</span>
         </div>
         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${c.badge}`}>
           {analysis.distanceKm} km away
@@ -391,7 +391,14 @@ export default function ApplicationDetail() {
                       className="w-full h-36 object-cover"
                       onError={e => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect fill="%23f3f4f6" width="200" height="150"/><text fill="%239ca3af" x="50%" y="50%" text-anchor="middle" dy=".3em">No preview</text></svg>'; }}
                     />
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-2 py-1 capitalize">{photo.type}</div>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-2 py-1">
+                      {{
+                        residence: 'Residence', residence_building: 'Residence — Building',
+                        residence_door: 'Residence — Door', office: 'Office',
+                        business: 'Business', business_outside: 'Business — Outside',
+                        business_inside: 'Business — Inside',
+                      }[photo.type] || photo.type}
+                    </div>
                     {photo.lat && (
                       <div className="absolute top-1.5 right-1.5 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
                         <MapPin size={8} />{photo.lat.toFixed(3)}, {photo.lng.toFixed(3)}

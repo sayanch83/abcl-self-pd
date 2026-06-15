@@ -31,11 +31,15 @@ function StepIndicator({ steps, current }) {
   );
 }
 
-function PhotoUploader({ label, type, sessionToken, onUploaded }) {
+function PhotoUploader({ label, type, sessionToken, onUploaded, existing }) {
   const [uploading, setUploading] = useState(false);
-  const [photo, setPhoto] = useState(null);
+  // Sync with parent state (existing) so re-visiting step shows uploaded photo
+  const [photo, setPhoto] = useState(existing || null);
   const [error, setError] = useState('');
   const inputRef = useRef();
+
+  // Keep in sync if parent resets
+  useState(() => { if (existing && !photo) setPhoto(existing); }, [existing]);
 
   const getGeoLocation = () => new Promise((resolve) => {
     if (!navigator.geolocation) { resolve({ lat: null, lng: null }); return; }
@@ -527,43 +531,90 @@ export default function CustomerPdPage() {
     </div>
   );
 
-  // Step 4 — Photos
+  // Step 4 — Photos (occupation-specific)
+  const photoConfig = isSalaried ? [
+    {
+      key: 'residence_building',
+      type: 'residence',
+      icon: Home,
+      label: 'Residence — Building / Exterior',
+      instruction: 'Stand outside and capture a clear photo of the building / apartment block where you reside.',
+      example: 'E.g. front view of the building, apartment block name visible',
+    },
+    {
+      key: 'residence_door',
+      type: 'residence_door',
+      icon: Home,
+      label: 'Residence — Entrance Door with Name Plate',
+      instruction: 'Capture your flat / house entrance door clearly showing the name plate or door number.',
+      example: 'E.g. door with "Dharpale — Flat 4B" name plate visible',
+    },
+  ] : [
+    {
+      key: 'business_outside',
+      type: 'business_outside',
+      icon: Building2,
+      label: 'Business Premises — Outside / Frontage',
+      instruction: 'Stand outside and capture the front of your business premises / shop / office clearly.',
+      example: 'E.g. shop front with signboard, shutter, or business name visible',
+    },
+    {
+      key: 'business_inside',
+      type: 'business_inside',
+      icon: Building2,
+      label: 'Business Premises — Inside',
+      instruction: 'Capture the interior of your business premises showing the workspace or activity.',
+      example: 'E.g. shop interior, office desk, or business equipment',
+    },
+  ];
+
   const renderStep4 = () => (
     <div className="animate-fadeIn space-y-4">
       <div className="flex items-center gap-3 mb-2">
-        <div className="w-10 h-10 rounded-xl bg-[#F5E6E9] flex items-center justify-center"><Camera size={18} className="text-[#C8102E]" /></div>
-        <div><h2 className="font-bold text-gray-900">Photographs</h2><p className="text-xs text-gray-400">Please take photos at your actual location</p></div>
+        <div className="w-10 h-10 rounded-xl bg-[#F5E6E9] flex items-center justify-center">
+          <Camera size={18} className="text-[#C8102E]" />
+        </div>
+        <div>
+          <h2 className="font-bold text-gray-900">Photographs</h2>
+          <p className="text-xs text-gray-400">
+            {isSalaried
+              ? 'Upload 2 photos of your residence'
+              : 'Upload 2 photos of your business premises'}
+          </p>
+        </div>
       </div>
 
       <Alert type="info" className="text-xs">
-        📍 Allow location access when prompted — photos will be geo-tagged automatically to verify address.
+        📍 Allow location access when prompted — photos will be geo-tagged automatically to verify your address.
       </Alert>
 
-      <div className="space-y-4">
-        <div>
-          <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5"><Home size={14} className="text-[#C8102E]" /> Residence Photo</p>
-          <p className="text-xs text-gray-400 mb-2">Take a photo from inside or outside your home</p>
-          <PhotoUploader
-            label="Take Residence Photo"
-            type="residence"
-            sessionToken={sessionToken}
-            onUploaded={photo => setPhotos(p => ({ ...p, residence: photo }))}
-          />
-        </div>
+      <div className="space-y-5">
+        {photoConfig.map((cfg, idx) => {
+          const Icon = cfg.icon;
+          return (
+            <div key={cfg.key} className="bg-white border border-gray-100 rounded-xl p-4">
+              {/* Header */}
+              <div className="flex items-start gap-3 mb-3">
+                <div className="w-7 h-7 rounded-lg bg-[#F5E6E9] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-xs font-bold text-[#C8102E]">{idx + 1}</span>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">{cfg.label}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{cfg.instruction}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 italic">{cfg.example}</p>
+                </div>
+              </div>
 
-        <div>
-          <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
-            <Building2 size={14} className="text-[#C8102E]" />
-            {isSalaried ? 'Office' : 'Business'} Photo
-          </p>
-          <p className="text-xs text-gray-400 mb-2">Take a photo at your {isSalaried ? 'workplace' : 'business premises'}</p>
-          <PhotoUploader
-            label={`Take ${isSalaried ? 'Office' : 'Business'} Photo`}
-            type={isSalaried ? 'office' : 'business'}
-            sessionToken={sessionToken}
-            onUploaded={photo => setPhotos(p => ({ ...p, office: photo }))}
-          />
-        </div>
+              <PhotoUploader
+                label={`Take Photo ${idx + 1}`}
+                type={cfg.type}
+                sessionToken={sessionToken}
+                onUploaded={photo => setPhotos(p => ({ ...p, [cfg.key]: photo }))}
+                existing={photos[cfg.key]}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -620,15 +671,28 @@ export default function CustomerPdPage() {
         <div className="bg-white border border-gray-100 rounded-xl p-4">
           <p className="text-xs font-semibold text-[#C8102E] uppercase tracking-wide mb-3">Photos</p>
           <div className="grid grid-cols-2 gap-3">
-            {Object.entries(photos).map(([type, photo]) => photo && (
-              <div key={type} className="relative">
-                <img src={photo.preview || photo.url} alt={type} className="w-full h-28 object-cover rounded-lg" />
-                <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1.5 rounded-b-lg capitalize">{type}</div>
-              </div>
-            ))}
+            {photoConfig.map(cfg => {
+              const photo = photos[cfg.key];
+              return (
+                <div key={cfg.key} className={`rounded-lg overflow-hidden border ${photo ? 'border-gray-100' : 'border-dashed border-gray-200 bg-gray-50'}`}>
+                  {photo ? (
+                    <div className="relative">
+                      <img src={photo.preview || photo.url} alt={cfg.label} className="w-full h-28 object-cover" />
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1.5 leading-tight">{cfg.label}</div>
+                    </div>
+                  ) : (
+                    <div className="h-28 flex flex-col items-center justify-center text-center p-2">
+                      <Camera size={18} className="text-gray-300 mb-1" />
+                      <p className="text-xs text-gray-400 leading-tight">{cfg.label}</p>
+                      <p className="text-xs text-amber-500 mt-1">Not uploaded</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
           {Object.values(photos).filter(Boolean).length === 0 && (
-            <p className="text-xs text-amber-600">⚠ No photos uploaded. Photos help verify your address.</p>
+            <p className="text-xs text-amber-600 mt-2">⚠ No photos uploaded. Photos help verify your address.</p>
           )}
         </div>
 

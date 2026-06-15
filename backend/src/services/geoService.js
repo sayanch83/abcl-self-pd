@@ -67,16 +67,33 @@ function analyzeGeoTagging(photos, residenceAddress, officeAddress) {
   const residenceCoords = approximateCoordsFromAddress(residenceAddress);
   const officeCoords = approximateCoordsFromAddress(officeAddress);
 
+  // Photo type → address mapping
+  // residence types → compare against residence address
+  // business/office types → compare against office address
+  const RESIDENCE_TYPES = ['residence', 'residence_building', 'residence_door'];
+  const OFFICE_TYPES    = ['office', 'business', 'business_outside', 'business_inside'];
+
+  // Human-readable labels for each type
+  const TYPE_LABELS = {
+    residence:         'Residence',
+    residence_building:'Residence — Building',
+    residence_door:    'Residence — Entrance Door',
+    office:            'Office',
+    business:          'Business Premises',
+    business_outside:  'Business — Outside',
+    business_inside:   'Business — Inside',
+  };
+
   for (const photo of photos) {
     if (!photo.lat || !photo.lng) continue;
 
     let referenceCoords = null;
     let referenceAddress = null;
 
-    if (photo.type === 'residence') {
+    if (RESIDENCE_TYPES.includes(photo.type)) {
       referenceCoords = residenceCoords;
       referenceAddress = residenceAddress;
-    } else if (photo.type === 'office' || photo.type === 'business') {
+    } else if (OFFICE_TYPES.includes(photo.type)) {
       referenceCoords = officeCoords;
       referenceAddress = officeAddress;
     }
@@ -88,6 +105,7 @@ function analyzeGeoTagging(photos, residenceAddress, officeAddress) {
 
     results.push({
       photoType: photo.type,
+      photoTypeLabel: TYPE_LABELS[photo.type] || photo.type,
       photoUrl: photo.url,
       photoCapturedAt: photo.timestamp,
       photoCoords: { lat: photo.lat, lng: photo.lng },
