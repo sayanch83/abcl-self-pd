@@ -37,10 +37,11 @@ export const authApi = {
 };
 
 export const applicationApi = {
-  getStats: () => api.get('/applications/stats'),
-  getAll: (params) => api.get('/applications', { params }),
-  getById: (id) => api.get(`/applications/${id}`),
-  triggerPd: (id) => api.post(`/applications/${id}/trigger-pd`),
+  getStats:      ()         => api.get('/applications/stats'),
+  getAll:        (params)   => api.get('/applications', { params }),
+  getById:       (id)       => api.get(`/applications/${id}`),
+  getDsData:     (id)       => api.get(`/applications/${id}/ds-data`),
+  triggerPd:     (id)       => api.post(`/applications/${id}/trigger-pd`),
   updateOutcome: (id, data) => api.post(`/applications/${id}/pd-outcome`, data),
 };
 

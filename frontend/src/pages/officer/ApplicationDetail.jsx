@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';import { useParams, useNavigate } from 'react-router-dom';
 import {
   ChevronDown, ChevronUp, MapPin, CheckCircle, XCircle,
   Home, Building2, Users, FileText, Image, RefreshCw, Send, ShoppingBag
@@ -10,7 +9,6 @@ import { Badge, StatusBadge, Spinner, Alert, Textarea } from '../../components/c
 import PdLinkModal from '../../components/common/PdLinkModal';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
-import { generateEcommerceData } from '../../utils/ecommerceAddressStub';
 
 // ── Collapsible Section (matches screenshot style) ────────────────────────────
 function Section({ title, icon: Icon, children, defaultOpen = false, badge }) {
@@ -108,95 +106,151 @@ function GeoCard({ analysis }) {
   );
 }
 
-// ── Ecommerce Address Validation Section ─────────────────────────────────────
-function EcommerceSection({ residenceAddress, appId }) {
-  const data = generateEcommerceData(residenceAddress);
+// ── Digital Footprint Intelligence Section (DS Authenticate) ─────────────────
+function DigitalFootprintSection({ applicationId, employmentType }) {
+  const [ds, setDs] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const stabilityColor =
-    data.address_stability_score >= 85 ? 'text-emerald-600' :
-    data.address_stability_score >= 70 ? 'text-amber-600' : 'text-red-500';
+  useEffect(() => {
+    applicationApi.getDsData(applicationId)
+      .then(res => setDs(res.data.data))
+      .catch(() => setDs(null))
+      .finally(() => setLoading(false));
+  }, [applicationId]);
 
-  const stabilityBg =
-    data.address_stability_score >= 85 ? 'bg-emerald-50 border-emerald-200' :
-    data.address_stability_score >= 70 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
-
-  const matchBg    = data.application_address_match ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200';
-  const matchColor = data.application_address_match ? 'text-emerald-700' : 'text-amber-700';
-  const matchLabel = data.application_address_match ? '✓ Match' : '~ Partial';
-  const matchDesc  = data.application_address_match
-    ? 'Address on application is consistent with known delivery locations'
-    : 'Address on application partially overlaps with known delivery locations';
+  const isSalaried = employmentType === 'salaried';
 
   return (
-    <Section title="Ecommerce Address Validation" icon={ShoppingBag} defaultOpen>
-      {/* Source label */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">Source: Digital footprint intelligence</span>
+    <Section title="Digital Footprint Intelligence" icon={ShoppingBag} defaultOpen>
+      {loading ? (
+        <div className="flex items-center gap-2 py-3 text-gray-400 text-xs">
+          <Spinner size={14} /> Fetching intelligence data...
         </div>
-        <span className="text-xs text-gray-400 font-mono">{data.mobile}</span>
-      </div>
+      ) : !ds ? (
+        <p className="text-xs text-gray-400 py-2">Intelligence data unavailable.</p>
+      ) : (
+        <div className="space-y-3">
 
-      {/* Top 2 addresses */}
-      <div className="space-y-2 mb-4">
-        {data.known_addresses.map(addr => {
-          const confColor =
-            addr.confidence >= 85 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' :
-            addr.confidence >= 70 ? 'text-amber-600 bg-amber-50 border-amber-200' :
-                                    'text-red-500 bg-red-50 border-red-200';
+          {/* ── 1. Trust Overview ─────────────────────────────────────────── */}
+          <div className="grid grid-cols-2 gap-2">
+            {/* Trust Score */}
+            {(() => {
+              const score  = ds.dsTrustScore;
+              const color  = score >= 650 ? 'text-emerald-600' : score >= 500 ? 'text-amber-600' : 'text-red-500';
+              const bg     = score >= 650 ? 'bg-emerald-50 border-emerald-200' : score >= 500 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
+              return (
+                <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border ${bg}`}>
+                  <div>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold">Trust Score</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Digital trust index</p>
+                  </div>
+                  <p className={`text-2xl font-bold ml-2 flex-shrink-0 ${color}`}>{score}<span className="text-xs font-normal text-gray-400"> /1000</span></p>
+                </div>
+              );
+            })()}
 
-          return (
-            <div key={addr.rank} className="flex items-start gap-3 p-3 bg-gray-50 border border-gray-100 rounded-xl">
-              {/* Rank badge */}
-              <div className="w-5 h-5 rounded-full bg-[#C8102E] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
-                {addr.rank}
-              </div>
-
-              {/* Address */}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-800 leading-relaxed">{addr.address}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5 uppercase tracking-wide">{addr.type}</p>
-              </div>
-
-              {/* Confidence pill */}
-              <div className={`flex-shrink-0 px-2 py-1 rounded-lg border text-xs font-bold ${confColor}`}>
-                {addr.confidence}%
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Stability + Match — compact 2-column row */}
-      <div className="grid grid-cols-2 gap-2">
-        {/* Address stability */}
-        <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border ${stabilityBg}`}>
-          <div>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold">Stability Score</p>
-            <p className="text-xs text-gray-500 mt-0.5">Address consistency over time</p>
+            {/* Blacklist */}
+            {(() => {
+              const clean = !ds.enrichment.blackList;
+              return (
+                <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border ${clean ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+                  <div>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold">Blacklist</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Fraud / watchlist check</p>
+                  </div>
+                  <span className={`text-sm font-bold flex-shrink-0 ml-2 ${clean ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {clean ? '✓ Clean' : '⚠ Flagged'}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
-          <p className={`text-xl font-bold ml-3 flex-shrink-0 ${stabilityColor}`}>
-            {data.address_stability_score}
+
+          {/* ── 2. Identity Signals ───────────────────────────────────────── */}
+          <div className="border border-gray-100 rounded-xl overflow-hidden">
+            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide px-3 py-2 bg-gray-50 border-b border-gray-100">Identity Signals</p>
+            <div className="divide-y divide-gray-50">
+              {/* Name on record */}
+              <DsRow label="Name on Record" value={ds.enrichment.panDetails?.fullName} />
+              {/* Employment (salaried) */}
+              {isSalaried && (
+                <DsRow
+                  label="Employment Confirmed"
+                  value={ds.enrichment.employment?.isEmployed
+                    ? (ds.enrichment.employment?.hasUan ? 'Yes — UAN present (EPFO)' : 'Yes')
+                    : 'Not confirmed'}
+                  positive={ds.enrichment.employment?.isEmployed}
+                />
+              )}
+              {/* GST (self-employed) */}
+              {!isSalaried && (
+                <DsRow
+                  label="GST Registration"
+                  value={ds.enrichment.hasGst ? 'Registered' : 'Not Registered'}
+                  positive={ds.enrichment.hasGst}
+                  neutral={!ds.enrichment.hasGst}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* ── 3. Mobile Intelligence ────────────────────────────────────── */}
+          <div className="border border-gray-100 rounded-xl overflow-hidden">
+            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide px-3 py-2 bg-gray-50 border-b border-gray-100">Mobile Intelligence</p>
+            <div className="divide-y divide-gray-50">
+              <DsRow label="Network Region" value={ds.enrichment.currentNetworkRegion} />
+              <DsRow
+                label="Region vs Declared Address"
+                value={ds.enrichment._regionMatch ? 'Match' : 'Mismatch'}
+                positive={ds.enrichment._regionMatch}
+                negative={!ds.enrichment._regionMatch}
+              />
+              <DsRow label="Age of Number" value={ds.enrichment.aon?.aonBucket} />
+            </div>
+          </div>
+
+          {/* ── 4. Platform Presence ──────────────────────────────────────── */}
+          <div className="border border-gray-100 rounded-xl overflow-hidden">
+            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide px-3 py-2 bg-gray-50 border-b border-gray-100">Platform Presence</p>
+            <div className="grid grid-cols-3 divide-x divide-gray-100">
+              {[
+                { label: 'Flipkart', val: ds.enrichment.digitalPlatformScrub?.phoneSocial?.flipkart },
+                { label: 'Swiggy',   val: ds.enrichment.digitalPlatformScrub?.phoneSocial?.swiggy   },
+                { label: 'WhatsApp', val: ds.enrichment.digitalPlatformScrub?.phoneSocial?.whatsapp  },
+              ].map(({ label, val }) => (
+                <div key={label} className="flex flex-col items-center justify-center py-3 px-2 gap-1">
+                  <span className={`text-lg font-bold ${val ? 'text-emerald-500' : 'text-gray-300'}`}>
+                    {val ? '✓' : '—'}
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-medium">{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Disclaimer */}
+          <p className="text-[10px] text-gray-400 leading-relaxed">
+            * Intelligence derived from digital footprint data sources. For indicative use in credit assessment only.
           </p>
         </div>
-
-        {/* Application address match */}
-        <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border ${matchBg}`}>
-          <div className="min-w-0">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold">App Address</p>
-            <p className={`text-xs mt-0.5 leading-tight ${matchColor}`}>{matchDesc}</p>
-          </div>
-          <span className={`ml-3 flex-shrink-0 text-xs font-bold px-2 py-1 rounded-lg border ${matchBg} ${matchColor}`}>
-            {matchLabel}
-          </span>
-        </div>
-      </div>
-
-      {/* Disclaimer */}
-      <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
-        * Indicative data derived from digital footprint intelligence. Confidence scores reflect address frequency and recency from e-commerce interactions.
-      </p>
+      )}
     </Section>
+  );
+}
+
+// ── DS Row helper ─────────────────────────────────────────────────────────────
+function DsRow({ label, value, positive, negative, neutral }) {
+  const valColor = positive ? 'text-emerald-600 font-semibold'
+                 : negative ? 'text-red-500 font-semibold'
+                 : 'text-gray-800';
+  const prefix   = positive ? '✓ ' : negative ? '✗ ' : '';
+  return (
+    <div className="flex items-center justify-between px-3 py-2">
+      <span className="text-xs text-[#C8102E] font-medium">{label}</span>
+      <span className={`text-xs text-right ml-4 ${valColor}`}>
+        {value ? `${prefix}${value}` : <span className="text-gray-300 italic">—</span>}
+      </span>
+    </div>
   );
 }
 
@@ -469,8 +523,11 @@ export default function ApplicationDetail() {
             )}
           </Section>
 
-          {/* Ecommerce Address Validation */}
-          <EcommerceSection residenceAddress={data.residence_address} appId={data.app_id} />
+          {/* Digital Footprint Intelligence */}
+          <DigitalFootprintSection
+            applicationId={data.id}
+            employmentType={data.employment_type}
+          />
 
           {/* PD Outcome — only show after completion */}
           {isCompleted && (
