@@ -475,11 +475,13 @@ export default function CustomerPdPage() {
         .filter(Boolean)
         .map(({ preview, ...rest }) => rest);
 
-      // Include video in media if recorded
+      // Include video metadata if recorded — strip url (base64 blob, already uploaded)
+      // and preview (blob URL) to keep the submit payload small
       const allMedia = cleanPhotos;
       if (video) {
-        const { preview, ...cleanVideo } = video;
-        allMedia.push(cleanVideo);
+        const { preview, url, ...videoMeta } = video;
+        // Keep only lat, lng, type, mediaType, timestamp — not the blob
+        allMedia.push({ ...videoMeta, url: null });
       }
 
       await pdApi.submit(sessionToken, { ...form, photos: allMedia });

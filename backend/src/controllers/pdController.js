@@ -187,8 +187,18 @@ async function submitPd(req, res) {
       try { photosArray = JSON.parse(photosArray); } catch { photosArray = []; }
     }
     if (!Array.isArray(photosArray)) photosArray = [];
-    // Strip client-only 'preview' blob URLs before storing
-    photosArray = photosArray.map(({ preview, ...rest }) => rest);
+    // Strip client-only fields
+    photosArray = photosArray.map(({ preview, url, ...rest }) => ({ ...rest, url: url || null }));
+
+    // Merge server-stored video (uploaded separately, stored on pd_link)
+    if (pdLink.session_video) {
+      try {
+        const videoData = JSON.parse(pdLink.session_video);
+        // Only add if not already in photosArray
+        const alreadyPresent = photosArray.some(p => p.mediaType === 'video');
+        if (!alreadyPresent) photosArray.push(videoData);
+      } catch { /* ignore malformed video data */ }
+    }
 
     const submissionId = uuidv4();
 
@@ -239,6 +249,21 @@ async function uploadVideo(req, res) {
       return res.status(400).json({ success: false, error: 'No video uploaded' });
     }
 
+    // Verify session token
+    const jwt = require('jsonwebtoken');
+    const authHeader = req.headers['authorization'];
+    const sessionToken = authHeader && authHeader.split(' ')[1];
+    if (!sessionToken) {
+      return res.status(401).json({ success: false, error: 'Session token required' });
+    }
+
+    let session;
+    try {
+      session = jwt.verify(sessionToken, process.env.JWT_SECRET);
+    } catch {
+      return res.status(401).json({ success: false, error: 'Invalid or expired session' });
+    }
+
     const { videoType, lat, lng } = req.body;
 
     const VALID_VIDEO_TYPES = ['residence_video', 'business_video', 'office_video'];
@@ -248,17 +273,32 @@ async function uploadVideo(req, res) {
 
     const url = getFileUrl(req.file);
 
+    const videoData = {
+      url,
+      lat:       parseFloat(lat) || null,
+      lng:       parseFloat(lng) || null,
+      type:      videoType,
+      mediaType: 'video',
+      timestamp: new Date().toISOString(),
+      size:      req.file.size,
+    };
+
+    // Store video on the pd_link so submit can retrieve it without re-sending the blob
+    const db = getDatabase();
+    db.prepare(`UPDATE pd_links SET session_video = ? WHERE id = ?`)
+      .run(JSON.stringify(videoData), session.pdLinkId);
+
+    // Return metadata to frontend (no url needed in submit payload)
     return res.json({
       success: true,
       data: {
-        url,
-        lat:          parseFloat(lat) || null,
-        lng:          parseFloat(lng) || null,
-        type:         videoType,
-        mediaType:    'video',
-        timestamp:    new Date().toISOString(),
-        originalName: req.file.originalname,
-        size:         req.file.size,
+        lat:       videoData.lat,
+        lng:       videoData.lng,
+        type:      videoData.type,
+        mediaType: videoData.mediaType,
+        timestamp: videoData.timestamp,
+        size:      videoData.size,
+        stored:    true,   // tells frontend the video is already stored server-side
       }
     });
   } catch (error) {

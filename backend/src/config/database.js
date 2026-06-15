@@ -70,6 +70,7 @@ function runMigrations() {
       triggered_by TEXT NOT NULL,
       triggered_at TEXT DEFAULT (datetime('now')),
       sms_sid TEXT,
+      session_video TEXT,
       FOREIGN KEY (application_id) REFERENCES applications(id),
       FOREIGN KEY (triggered_by) REFERENCES officers(id)
     );

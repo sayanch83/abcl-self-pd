@@ -570,19 +570,83 @@ export default function ApplicationDetail() {
             </FieldGrid>
           </Section>
 
-          {/* Uploaded Images — renamed, merged (was Geolocation Images + Uploaded Photographs) */}
-          <Section title="Uploaded Images" icon={Image} defaultOpen={isCompleted}
-            badge={geoAnalysis?.length > 0 ? `${geoAnalysis.length} photos` : undefined}>
-            {!isCompleted ? (
-              <p className="text-sm text-gray-400 py-2">Photos will appear after customer submits the form.</p>
-            ) : geoAnalysis?.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
-                {geoAnalysis.map((a, i) => <GeoCard key={i} analysis={a} />)}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400 py-2">No geo-tagged photos available.</p>
-            )}
-          </Section>
+          {/* Uploaded Images */}
+          {(() => {
+            const allMedia = s?.photos || [];
+            const videoEntries = allMedia.filter(p => p.mediaType === 'video');
+            const photoCount  = geoAnalysis?.length || 0;
+            const badge       = (photoCount + videoEntries.length) > 0
+              ? `${photoCount} photo${photoCount !== 1 ? 's' : ''}${videoEntries.length > 0 ? ` · ${videoEntries.length} video` : ''}`
+              : undefined;
+            return (
+              <Section title="Uploaded Images" icon={Image} defaultOpen={isCompleted} badge={badge}>
+                {!isCompleted ? (
+                  <p className="text-sm text-gray-400 py-2">Media will appear after customer submits the form.</p>
+                ) : (
+                  <>
+                    {/* Photos with geo analysis */}
+                    {geoAnalysis?.length > 0 && (
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        {geoAnalysis.map((a, i) => <GeoCard key={i} analysis={a} />)}
+                      </div>
+                    )}
+
+                    {/* Video entries */}
+                    {videoEntries.map((vid, i) => (
+                      <div key={i} className="border border-blue-100 rounded-xl overflow-hidden mb-3">
+                        <div className="bg-blue-50 px-4 py-2 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-blue-600 text-sm">🎥</span>
+                            <span className="text-sm font-semibold text-blue-800 capitalize">
+                              {vid.type?.replace(/_/g, ' ')}
+                            </span>
+                          </div>
+                          <span className="text-xs text-blue-500">
+                            {vid.timestamp ? new Date(vid.timestamp).toLocaleString('en-IN', {
+                              day: '2-digit', month: 'short', year: 'numeric',
+                              hour: '2-digit', minute: '2-digit', hour12: true
+                            }) : ''}
+                          </span>
+                        </div>
+                        {vid.url ? (
+                          <video
+                            src={vid.url}
+                            controls
+                            playsInline
+                            className="w-full max-h-64 bg-black"
+                          />
+                        ) : (
+                          <div className="p-4 text-center text-gray-400 text-sm bg-gray-50">
+                            Video stored on server — not available for inline preview
+                          </div>
+                        )}
+                        {vid.lat && (
+                          <div className="px-4 py-2 bg-gray-50 border-t border-blue-100 flex items-center justify-between text-xs text-gray-500">
+                            <div className="flex items-center gap-1">
+                              <MapPin size={11} />
+                              <span>{vid.lat.toFixed(5)}, {vid.lng.toFixed(5)}</span>
+                            </div>
+                            <a
+                              href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${vid.lat},${vid.lng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline flex items-center gap-1"
+                            >
+                              <ExternalLink size={10} /> Street View
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {photoCount === 0 && videoEntries.length === 0 && (
+                      <p className="text-sm text-gray-400 py-2">No media uploaded.</p>
+                    )}
+                  </>
+                )}
+              </Section>
+            );
+          })()}
 
           {/* Digital Footprint Intelligence */}
           <DigitalFootprintSection
