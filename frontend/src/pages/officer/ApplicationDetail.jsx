@@ -5,7 +5,6 @@ import {
   Home, Building2, Users, FileText, Image, RefreshCw, Send
 } from 'lucide-react';
 import { applicationApi } from '../../api/client';
-import api from '../../api/client';
 import OfficerLayout from '../../components/layout/OfficerLayout';
 import { Badge, StatusBadge, Spinner, Alert, Textarea } from '../../components/common/UI';
 import PdLinkModal from '../../components/common/PdLinkModal';
@@ -119,18 +118,13 @@ export default function ApplicationDetail() {
   const [remarks, setRemarks] = useState('');
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [modal, setModal] = useState(null);
-  const [appMode, setAppMode] = useState('live');
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [res, modeRes] = await Promise.all([
-        applicationApi.getById(id),
-        api.get('/mode'),
-      ]);
+      const res = await applicationApi.getById(id);
       const d = res.data.data;
       setData(d);
-      setAppMode(modeRes.data.mode);
       if (d.submission?.pd_outcome) {
         setOutcome(d.submission.pd_outcome);
         setRemarks(d.submission.outcome_remarks || '');
@@ -193,50 +187,44 @@ export default function ApplicationDetail() {
 
   return (
     <OfficerLayout appId={data.app_id}>
-      {/* ── White info bar — matches existing screen's two-row strip ── */}
-      <div className="bg-white border border-gray-200 rounded-t-none rounded-b-none -mx-5 -mt-5 px-6 py-0 mb-0 shadow-sm">
+      {/* ── White info bar — matches existing screen two-row strip ── */}
+      <div className="bg-white border border-gray-200 -mx-5 -mt-5 px-6 py-0 mb-0 shadow-sm">
         {/* Row 1 */}
         <div className="flex items-center justify-between py-2 border-b border-gray-100">
-          <div className="flex items-center gap-4 flex-wrap text-xs text-gray-700">
+          <div className="flex items-center gap-3 flex-wrap text-xs text-gray-700">
             <span className="font-semibold text-gray-900">
-              {data.employment_type === 'salaried' ? 'Mr./Ms.' : ''} {data.customer_name}
+              {data.customer_name}
             </span>
-            <span className="text-gray-400">|</span>
+            <span className="text-gray-300">|</span>
             <span>{data.product === 'Personal Loan' ? 'PL' : data.product === 'Business Loan' ? 'BL' : data.product === 'Home Loan' ? 'HL' : 'LAP'}</span>
-            <span className="text-gray-400">|</span>
+            <span className="text-gray-300">|</span>
             <span>Unsecured Loan</span>
-            <span className="text-gray-400">|</span>
+            <span className="text-gray-300">|</span>
             <span>Assigned To : <strong>{data.officer_name}</strong></span>
-            <span className="text-gray-400">|</span>
+            <span className="text-gray-300">|</span>
             <span>Document Status : <strong>FTR</strong></span>
           </div>
-          {/* Action buttons — right side, matches Submit/Approve/Decline */}
-          <div className="flex items-center gap-1.5 flex-shrink-0 ml-4">
-            {data.status !== 'completed' ? (
-              <button
-                onClick={handleTrigger}
-                disabled={triggering}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-[#C8102E] text-white text-xs font-semibold rounded hover:bg-[#A00D24] disabled:opacity-60 transition-colors"
-              >
-                <Send size={12} />
-                {triggering ? 'Sending...' : data.status === 'link_sent' ? 'Re-trigger Self-PD' : 'Trigger Self-PD'}
-              </button>
-            ) : (
-              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded">
-                <CheckCircle size={12} />
-                PD Completed
-              </span>
-            )}
+          {/* Submit / Approve / Decline — matches existing screen exactly */}
+          <div className="flex items-center gap-0 flex-shrink-0 ml-4">
+            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-semibold border border-gray-300 rounded-l hover:bg-gray-200 transition-colors">
+              ⊠ Submit
+            </button>
+            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold border border-emerald-700 hover:bg-emerald-700 transition-colors">
+              ✓ Approve
+            </button>
+            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-xs font-semibold border border-red-700 rounded-r hover:bg-red-700 transition-colors">
+              ✕ Decline
+            </button>
             <button
               onClick={fetchData}
-              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              className="ml-2 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
             >
               <RefreshCw size={13} />
             </button>
           </div>
         </div>
         {/* Row 2 */}
-        <div className="flex items-center gap-4 flex-wrap py-1.5 text-xs text-gray-600">
+        <div className="flex items-center gap-3 flex-wrap py-1.5 text-xs text-gray-600">
           <span>Loan Amount : <strong>₹{data.loan_amount?.toLocaleString('en-IN')}</strong></span>
           <span className="text-gray-300">|</span>
           <span>Stage : <strong>CRDT</strong></span>
@@ -245,17 +233,15 @@ export default function ApplicationDetail() {
           <span className="text-gray-300">|</span>
           <span>Branch : <strong>{data.branch}</strong></span>
           <span className="text-gray-300">|</span>
-          <span>Employment : <strong className="capitalize">{data.employment_type?.replace('_', ' ')}</strong></span>
-          <div className="ml-auto">
-            <StatusBadge status={data.status} />
-            {s?.pd_outcome && (
-              <span className={`ml-2 px-2 py-0.5 text-xs font-semibold rounded-full ${
-                s.pd_outcome === 'positive' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-              }`}>
-                {s.pd_outcome === 'positive' ? '✓ Positive' : '✗ Negative'}
+          <span>GO/NO GO : <strong>N</strong></span>
+          {s?.pd_outcome && (
+            <>
+              <span className="text-gray-300">|</span>
+              <span className={`font-semibold ${s.pd_outcome === 'positive' ? 'text-emerald-600' : 'text-red-600'}`}>
+                PD : {s.pd_outcome === 'positive' ? '✓ Positive' : '✗ Negative'}
               </span>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -482,6 +468,31 @@ export default function ApplicationDetail() {
         </div>
       </div>
 
+      {/* ── Fixed bottom bar — Trigger Self-PD (matches FI Trigger position) ── */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-2.5 flex items-center justify-end gap-2 z-40 shadow-lg">
+        <span className="text-xs text-gray-400 mr-auto font-mono">
+          Application ID : <span className="font-semibold text-gray-600">{data.app_id}</span>
+        </span>
+        {data.status !== 'completed' ? (
+          <button
+            onClick={handleTrigger}
+            disabled={triggering}
+            className="flex items-center gap-2 px-5 py-2 bg-[#C8102E] text-white text-sm font-semibold rounded hover:bg-[#A00D24] disabled:opacity-60 transition-colors shadow-sm"
+          >
+            <Send size={13} />
+            {triggering ? 'Sending...' : data.status === 'link_sent' ? 'Re-trigger Self-PD' : 'Trigger Self-PD'}
+          </button>
+        ) : (
+          <span className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded">
+            <CheckCircle size={14} />
+            Self-PD Completed
+          </span>
+        )}
+      </div>
+
+      {/* Spacer for fixed bottom bar */}
+      <div className="h-14" />
+
       <PdLinkModal
         isOpen={!!modal}
         onClose={() => setModal(null)}
@@ -489,7 +500,6 @@ export default function ApplicationDetail() {
         customerName={modal?.customerName}
         appId={modal?.appId}
         mobile={modal?.mobile}
-        demoMode={appMode === 'demo'}
       />
     </OfficerLayout>
   );
