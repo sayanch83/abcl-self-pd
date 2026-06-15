@@ -107,21 +107,19 @@ function GeoCard({ analysis }) {
           <MapPin size={11} className="text-gray-400 mt-0.5 flex-shrink-0" />
           <div>
             <p className="text-gray-500">Photo captured at</p>
-            <div className="flex items-center gap-2">
-              <p className="font-medium text-gray-700">
-                {analysis.photoCoords?.lat?.toFixed(5)}, {analysis.photoCoords?.lng?.toFixed(5)}
-              </p>
-              {streetViewUrl && (
-                <a
-                  href={streetViewUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded ${c.badge} hover:opacity-80 transition-opacity`}
-                >
-                  <ExternalLink size={9} /> Street View
-                </a>
-              )}
-            </div>
+            <p className="font-medium text-gray-700">
+              {analysis.photoCoords?.lat?.toFixed(5)}, {analysis.photoCoords?.lng?.toFixed(5)}
+            </p>
+            {streetViewUrl && (
+              <a
+                href={streetViewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                <ExternalLink size={10} /> Open in Google Street View →
+              </a>
+            )}
           </div>
         </div>
         <div className="flex items-start gap-2">
@@ -298,6 +296,7 @@ export default function ApplicationDetail() {
   const [remarks, setRemarks] = useState('');
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [modal, setModal] = useState(null);
+  const [downloading, setDownloading] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -346,6 +345,34 @@ export default function ApplicationDetail() {
       toast.error('Failed to save decision');
     } finally {
       setSavingOutcome(false);
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    setDownloading(true);
+    try {
+      const token = localStorage.getItem('abcl_officer_token');
+      const res = await fetch(`/api/applications/${data.id}/report`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `ABCL-Self-PD-${data.app_id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Report downloaded');
+    } catch (err) {
+      toast.error(`Download failed: ${err.message}`);
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -619,16 +646,17 @@ export default function ApplicationDetail() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  {/* Download Report */}
-                  <a
-                    href={`/api/applications/${data.id}/report`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                  {/* Download Report — authenticated fetch */}
+                  <button
+                    onClick={handleDownloadReport}
+                    disabled={downloading}
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50"
                   >
-                    <Download size={14} />
-                    Download PD Report (PDF)
-                  </a>
+                    {downloading
+                      ? <><span className="animate-spin text-sm">⏳</span> Generating...</>
+                      : <><Download size={14} /> Download PD Report (PDF)</>
+                    }
+                  </button>
 
                   <button
                     onClick={handleSaveOutcome}
